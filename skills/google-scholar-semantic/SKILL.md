@@ -13,10 +13,19 @@ tags: ["recon", "browser", "scholar", "stealth"]
 
 # 🎓 Google Scholar Semantic (Browser) Recon Skill
 
+> **⚠️ STATUS (정직 표기)**: 이 스킬의 브라우저 정찰 경로는 **[LEGACY]**다.
+> `scripts/scholar_runner.py`의 stealth 브라우저 모드는 repo에 **미포함된**
+> 외부 모듈 `agents.stealth_browser`(MoltbotBrowser)에 의존하며, 일반 클론
+> 환경에서는 비활성이다(호출 시 명확한 `[LEGACY]` 메시지로 실패). 번들된
+> **지원 경로**는 `src/recon/engine.py`의 `SerpApiScholarClient`
+> (+Lightpanda fallback, 실 렌더 DOM 스냅샷 검증)다. 본 스킬의
+> `--self-test` 및 저장된 HTML 파싱 경로는 외부 모듈 없이 동작한다.
+>
 > **Identity**: 브라우저 기반 구글 스콜라 시맨틱 검색망 및 인지 엔진 (RISE Protocol)
-> **Core Tool**: `scripts/scholar_runner.py` -> `agents/stealth_browser.py`
+> **Core Tool (bundled)**: `src/recon/engine.py::SerpApiScholarClient` (지원 경로)
+> **Legacy Tool (unbundled)**: `scripts/scholar_runner.py` browser mode → 외부 `agents/stealth_browser.py`
 > **Target**: [Google Scholar Labs (Beta)](https://scholar.google.com/scholar_labs/search?hl=ko) / Google Scholar Web
-> **Engine**: `stealth-browser` (for Labs interface) / JSONL parser for `easy-review-system`
+> **Engine**: `stealth-browser` (legacy, unbundled) / JSONL·HTML parser (bundled, no external dep)
 
 ## 📌 개요 (Overview)
 `google-scholar-semantic` 스킬은 **Playwright CDP (Stealth Browser)**를 가동하여 실제 구글 스콜라 웹페이지를 탐색하고, 인간과 동일한 방식으로 데이터를 읽어 들이는 '시맨틱 정찰망'입니다.

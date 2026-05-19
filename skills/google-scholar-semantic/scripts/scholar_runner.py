@@ -20,8 +20,15 @@ _BS4_HINT = (
     "`uv run --extra scholar-browser python skills/google-scholar-semantic/"
     "scripts/scholar_runner.py ...` 로 실행하세요."
 )
+_STEALTH_HINT = (
+    "[LEGACY] 이 브라우저 모드는 repo에 미포함된 외부 모듈 "
+    "`agents.stealth_browser`(MoltbotBrowser)를 요구합니다. 번들된 지원 "
+    "경로는 src/recon/engine.py 의 SerpApiScholarClient(+Lightpanda fallback) "
+    "입니다. self-test / HTML 파싱 경로는 이 모듈 없이도 동작합니다."
+)
 
-# Add project root to sys.path to allow importing agents
+# 외부 `agents` 패키지가 repo 인접에 존재하는 환경(레거시)에서만 import 가능.
+# 번들되지 않으므로 일반 클론에서는 비활성(아래 fetch 함수에서 정직하게 실패).
 DEV_ROOT = Path(__file__).resolve().parents[3]
 sys.path.append(str(DEV_ROOT))
 
@@ -383,7 +390,10 @@ async def _run_semantic_crawl_session(
     max_results: int = 10,
     citation_depth: str = DEFAULT_CITATION_DEPTH,
 ) -> list[tuple[int, str]]:
-    from agents.stealth_browser import MoltbotBrowser
+    try:
+        from agents.stealth_browser import MoltbotBrowser
+    except ModuleNotFoundError as e:
+        raise RuntimeError(_STEALTH_HINT) from e
 
     bot = MoltbotBrowser(headless=headless)
     captured_files: list[tuple[int, str]] = []
