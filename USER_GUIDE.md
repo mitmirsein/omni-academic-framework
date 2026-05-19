@@ -682,7 +682,7 @@ uv run python -m pytest tests/test_run_store.py
 - Gate 3의 기본 감사는 deterministic Lens Compliance MVP다.
 - `--llm-critic`은 critic 결과를 저장하고 감사하지만, critic 결과를 바탕으로 자동 재작성하는 수정 루프는 아직 없다.
 - Google Scholar HTML 파싱은 외부 사이트 구조 변화에 취약하다.
-- KCI adapter는 scaffold이며 XML 경로는 환경에 따라 검증이 필요하다.
+- KCI adapter는 `KCI_API_KEY`가 필수다(일반 사용자에게 비공개·기관/제한 발급, 무키 경로 없음). 실 API 검증 결과 루트는 `<MetaData>`이며 키 누락 시 `resultMsg` 에러 봉투가 오고 어댑터는 빈 결과로 정직하게 신호한다. 성공-레코드 필드 스키마는 키드 샘플 미확보로 미검증이라 local-name 휴리스틱으로 추출한다. 일반 환경의 신학·인문학 정찰은 OpenAlex+Crossref가 담당하며 KCI 실패는 렌즈를 깨지 않는다(graceful degrade).
 - Audit score 80 미만 자체는 export 차단 조건이 아니다. 차단은 `audit_passed=false` 또는 forensic 실패 기준이다.
 - `runs/`와 `.cache/`는 로컬 산출물이며 GitHub에 올리지 않는다.
 

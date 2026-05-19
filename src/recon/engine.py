@@ -83,63 +83,101 @@ class ArxivClient(BaseAPIClient):
         return []
 
 class KCIClient(BaseAPIClient):
-    """실시간 한국학술지인용색인(KCI) 오픈 API 플러그인 (비동기)"""
+    """한국학술지인용색인(KCI) Open API 어댑터 (비동기).
+
+    실 API 검증(2026-05): 루트는 `<MetaData>`이고 `key` 파라미터가
+    필수다(없으면 `outputData/result/resultMsg`에 에러 메시지). 키 없는
+    무료 호출 경로는 존재하지 않으므로, 키 미설정 시 빈 결과로 삼키지
+    않고 정직하게 신호한다. **레코드(성공) 스키마는 키드 샘플 미확보로
+    여전히 미검증** — 필드는 추측 경로가 아니라 local-name 휴리스틱으로
+    추출한다(허위 정밀 주장 금지).
+    """
+
     async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
-        # KCI Open API 연동 구조체. 엘리먼트 경로는 공개 스키마 기준 추정값이며
-        # 미검증이다 → 실패 시 빈 결과로 삼키지 않고 명시적으로 신호한다.
+        api_key = os.environ.get("KCI_API_KEY", "").strip()
+        if not api_key:
+            console.print(
+                "[bold yellow]KCI: KCI_API_KEY 미설정 — KCI Open API는 키가 "
+                "필수입니다(open.kci.go.kr 무료 발급). 정직하게 결과 없음 "
+                "처리하고 진행합니다.[/bold yellow]"
+            )
+            return []
+
         params = urllib.parse.urlencode({
             "apiCode": "articleSearch",
+            "key": api_key,
             "title": query,
             "displayCount": max_results,
+            "page": 1,
         })
         url = f"https://open.kci.go.kr/po/openapi/openApiSearch.kci?{params}"
-        papers = []
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(url)
                 response.raise_for_status()
-                papers = self._parse(response.content)
+                return self._parse(response.content)
         except httpx.HTTPStatusError as e:
             console.print(f"[bold red]KCI API 에러 (상태 코드 {e.response.status_code})[/bold red]")
         except httpx.RequestError as e:
             console.print(f"[bold red]KCI 네트워크 요청 실패: {e}[/bold red]")
-
-        return papers
+        return []
 
     @staticmethod
     def _strip_ns(root):
-        """KCI 응답이 네임스페이스를 달고 오면 `.//record` 매칭이 조용히
-        실패한다(실 샘플 미확보 → 정확한 ns 불명). local-name 기준으로
-        태그를 정규화해 변형 내성을 높인다(샘플-독립적 robustness)."""
         for el in root.iter():
             if isinstance(el.tag, str) and "}" in el.tag:
                 el.tag = el.tag.rsplit("}", 1)[1]
         return root
 
+    @staticmethod
+    def _local(tag) -> str:
+        return tag.rsplit("}", 1)[-1].lower() if isinstance(tag, str) else ""
+
     @classmethod
     def _parse(cls, content: bytes) -> List[PaperMetadata]:
-        papers = []
         try:
             root = ET.fromstring(content)
-            if root.find('.//record') is None:
-                cls._strip_ns(root)  # 네임스페이스 변형 폴백
-            for record in root.findall('.//record'):
-                title = _findtext(record, './/articleInfo/title-group/article-title', {})
-                abstract = _findtext(record, './/articleInfo/abstract-group/abstract', {})
-                url_link = _findtext(record, './/articleInfo/url', {})
-                authors = [
-                    a.text for a in record.findall('.//author-group/author') if a.text
-                ]
-
-                papers.append(PaperMetadata(
-                    title=f"[KCI] {_norm(title) or '제목 없음'}",
-                    authors=authors or ["저자 미상"],
-                    abstract=_norm(abstract)[:200] or "초록 없음",
-                    url=url_link,
-                ))
         except ET.ParseError as e:
-            console.print(f"[bold red]KCI XML 파싱 실패(스키마 불일치 가능): {e}[/bold red]")
+            console.print(f"[bold red]KCI XML 파싱 실패: {e}[/bold red]")
+            return []
+        cls._strip_ns(root)
+
+        # 실 구조: MetaData/outputData/result/resultMsg = 에러/상태 봉투.
+        records = [el for el in root.iter() if cls._local(el.tag) == "record"]
+        if not records:
+            msg_el = next(
+                (el for el in root.iter() if cls._local(el.tag) == "resultmsg"), None
+            )
+            if msg_el is not None and (msg_el.text or "").strip():
+                console.print(
+                    f"[bold red]KCI 응답 실패(레코드 없음): {msg_el.text.strip()}[/bold red]"
+                )
+            return []
+
+        # 레코드 필드 스키마 미검증 → 정밀 경로 추측 대신 local-name 휴리스틱.
+        papers: List[PaperMetadata] = []
+        for rec in records:
+            title, url_link, abstract, authors = None, None, None, []
+            for el in rec.iter():
+                name = cls._local(el.tag)
+                txt = (el.text or "").strip()
+                if not txt:
+                    continue
+                if "title" in name and "group" not in name and not title:
+                    title = txt
+                elif name == "author":
+                    authors.append(txt)
+                elif "url" in name and not url_link:
+                    url_link = txt
+                elif "abstract" in name and "group" not in name and not abstract:
+                    abstract = txt
+            papers.append(PaperMetadata(
+                title=f"[KCI] {_norm(title) or '제목 없음'}",
+                authors=authors or ["저자 미상"],
+                abstract=_norm(abstract)[:200] or "초록 없음",
+                url=url_link,
+            ))
         return papers
 
 class CrossrefClient(BaseAPIClient):
