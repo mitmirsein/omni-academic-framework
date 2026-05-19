@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  # actions/checkout·setup-uv의 Node20 런타임 deprecation 경고 제거
+  # (Node24로 선옵트인 — 2026-06 강제 전환 전 미리 정렬).
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   quality-gate:
     runs-on: ubuntu-latest
