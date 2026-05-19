@@ -98,29 +98,35 @@ class KCIClient(BaseAPIClient):
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(url)
                 response.raise_for_status()
-                root = ET.fromstring(response.content)
-
-                for record in root.findall('.//record'):
-                    title = _findtext(record, './/articleInfo/title-group/article-title', {})
-                    abstract = _findtext(record, './/articleInfo/abstract-group/abstract', {})
-                    url_link = _findtext(record, './/articleInfo/url', {})
-                    authors = [
-                        a.text for a in record.findall('.//author-group/author') if a.text
-                    ]
-
-                    papers.append(PaperMetadata(
-                        title=f"[KCI] {_norm(title) or '제목 없음'}",
-                        authors=authors or ["저자 미상"],
-                        abstract=_norm(abstract)[:200] or "초록 없음",
-                        url=url_link,
-                    ))
+                papers = self._parse(response.content)
         except httpx.HTTPStatusError as e:
             console.print(f"[bold red]KCI API 에러 (상태 코드 {e.response.status_code})[/bold red]")
         except httpx.RequestError as e:
             console.print(f"[bold red]KCI 네트워크 요청 실패: {e}[/bold red]")
+
+        return papers
+
+    @classmethod
+    def _parse(cls, content: bytes) -> List[PaperMetadata]:
+        papers = []
+        try:
+            root = ET.fromstring(content)
+            for record in root.findall('.//record'):
+                title = _findtext(record, './/articleInfo/title-group/article-title', {})
+                abstract = _findtext(record, './/articleInfo/abstract-group/abstract', {})
+                url_link = _findtext(record, './/articleInfo/url', {})
+                authors = [
+                    a.text for a in record.findall('.//author-group/author') if a.text
+                ]
+
+                papers.append(PaperMetadata(
+                    title=f"[KCI] {_norm(title) or '제목 없음'}",
+                    authors=authors or ["저자 미상"],
+                    abstract=_norm(abstract)[:200] or "초록 없음",
+                    url=url_link,
+                ))
         except ET.ParseError as e:
             console.print(f"[bold red]KCI XML 파싱 실패(스키마 불일치 가능): {e}[/bold red]")
-
         return papers
 
 class CrossrefClient(BaseAPIClient):
