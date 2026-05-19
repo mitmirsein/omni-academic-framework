@@ -34,3 +34,7 @@ runs/
 
 # Recon HTTP 캐시 (휘발성 — provenance 아님)
 .cache/
+
+# Handoff / Peer Review documents (로컬 전용 보관, 깃허브 노출 방지)
+handoff/
+
