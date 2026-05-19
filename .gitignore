@@ -38,3 +38,8 @@ runs/
 # Handoff / Peer Review documents (로컬 전용 보관, 깃허브 노출 방지)
 handoff/
 
+# OS specific files
+.DS_Store
+.DS_Store?
+**/._*
+**/.DS_Store
