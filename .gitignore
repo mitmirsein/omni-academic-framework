@@ -43,3 +43,6 @@ handoff/
 .DS_Store?
 **/._*
 **/.DS_Store
+
+# Private scripts / Legacy tools
+skills/semantic-scholar/scripts/legacy_researcher.py
