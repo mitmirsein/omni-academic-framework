@@ -22,6 +22,28 @@ class MockProvider(BaseLLMProvider):
         #   README의 clone-즉시 --mock 경로가 깨지지 않는다.
         import re
 
+        if schema.__name__ == "LensAnalysisReport":
+            blocks = re.findall(r"\[(P_\d+)\]\s*(.+?)(?=\n\[P_\d+\]|\Z)", prompt, re.S)
+            lens_match = re.search(r"^Lens ID:\s*(.+)$", prompt, re.M)
+            lens = lens_match.group(1).strip() if lens_match else "mock"
+            findings = []
+            for i, (pid, text) in enumerate(blocks[:3], 1):
+                quote = text.strip()[:80]
+                findings.append({
+                    "focus_area": f"Mock Focus {i}",
+                    "paragraph_id": pid,
+                    "source_quote": quote,
+                    "analysis": "Mock source-bound analysis for pipeline verification.",
+                })
+            return schema.model_validate({
+                "lens": lens,
+                "executive_summary": (
+                    "Mock LLM analysis generated from real paragraph anchors."
+                ),
+                "findings": findings,
+                "limitations": ["MockProvider output is not interpretive analysis."],
+            })
+
         from src.ontology.extractor import (
             Edge,
             EntityClass,
@@ -95,6 +117,19 @@ class AnthropicProvider(BaseLLMProvider):
         "Return the result solely by calling the provided tool."
     )
 
+    LENS_ANALYSIS_SYSTEM_INSTRUCTION = (
+        "You are a domain-agnostic academic lens analyst. "
+        "Analyze only the supplied text and lens instructions. Hard rules:\n"
+        "1. Every finding must cite a paragraph_id copied verbatim from a "
+        "[P_XXXX] marker in the supplied text.\n"
+        "2. Every finding.source_quote must be copied verbatim from that "
+        "paragraph. Do not paraphrase source_quote.\n"
+        "3. Do not add claims, contexts, citations, or domain terminology not "
+        "grounded in the supplied text.\n"
+        "4. Preserve unresolved tensions and limitations.\n"
+        "Return the result solely by calling the provided tool."
+    )
+
     def __init__(self, api_key: str, model: str | None = None):
         if not api_key:
             raise ValueError(
@@ -113,10 +148,16 @@ class AnthropicProvider(BaseLLMProvider):
         self.model = model or self.DEFAULT_MODEL
 
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
+        tool_name = "emit_structured_output"
+        system_instruction = (
+            self.SYSTEM_INSTRUCTION
+            if schema.__name__ == "OntologyMap"
+            else self.LENS_ANALYSIS_SYSTEM_INSTRUCTION
+        )
         tool = {
-            "name": "emit_ontology_map",
+            "name": tool_name,
             "description": (
-                "Return the extracted ontology strictly conforming to the "
+                "Return structured academic output strictly conforming to the "
                 "input schema. This is the only allowed output channel."
             ),
             "input_schema": schema.model_json_schema(),
@@ -128,12 +169,12 @@ class AnthropicProvider(BaseLLMProvider):
                 system=[
                     {
                         "type": "text",
-                        "text": self.SYSTEM_INSTRUCTION,
+                        "text": system_instruction,
                         "cache_control": {"type": "ephemeral"},
                     }
                 ],
                 tools=[tool],
-                tool_choice={"type": "tool", "name": "emit_ontology_map"},
+                tool_choice={"type": "tool", "name": tool_name},
                 messages=[{"role": "user", "content": prompt}],
             )
         except self._anthropic.APIError as e:

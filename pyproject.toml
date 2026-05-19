@@ -1,6 +1,6 @@
 [project]
 name = "omni-academic-framework"
-version = "0.5.1"
+version = "0.6.0"
 description = "Palantir-style Ontology-First Academic Framework"
 readme = "README.md"
 requires-python = ">=3.11"

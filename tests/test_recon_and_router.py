@@ -62,6 +62,43 @@ def test_mock_ontology_path_passes_audit(tmp_path):
     assert (store.dir / "audit.json").is_file()
 
 
+def test_analyze_module_writes_lens_brief_artifact(tmp_path):
+    store = RunStore.create("analysis fixture", "general", mock=False, base=str(tmp_path))
+    router = OmniSupervisorRouter()
+
+    router._run_analyze(store, "Alpha claim appears here.\n\nBeta method follows.", "general")
+    store.note("status", "completed")
+    run_dir = store.finalize()
+
+    brief = (run_dir / "lens_brief.md").read_text(encoding="utf-8")
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert "# Lens Briefing Scaffold" in brief
+    assert "P_0001" in brief
+    assert "lens_brief.md" in manifest["artifacts"]
+    assert manifest["artifact_manifest"]["lens_brief.md"]["exists"] is True
+
+
+def test_analyze_module_writes_mock_llm_analysis_artifacts(tmp_path):
+    store = RunStore.create("analysis fixture", "general", mock=True, base=str(tmp_path))
+    router = OmniSupervisorRouter(use_mock=True)
+
+    router._run_analyze(
+        store,
+        "Alpha claim appears here.\n\nBeta method follows.",
+        "general",
+        llm_analysis=True,
+    )
+    store.note("status", "completed")
+    run_dir = store.finalize()
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert (run_dir / "lens_analysis.json").is_file()
+    assert (run_dir / "lens_analysis.md").is_file()
+    assert "lens_analysis.json" in manifest["artifacts"]
+    assert manifest["artifact_manifest"]["lens_analysis.md"]["exists"] is True
+
+
 def test_list_lenses_reads_registry():
     lenses = _list_lenses("lenses")
     ids = {row["id"] for row in lenses}

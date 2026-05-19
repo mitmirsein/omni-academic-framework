@@ -1,3 +1,4 @@
+from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.panel import Panel
 
@@ -5,6 +6,21 @@ from src.config.lens import LensNotFoundError, load_lens
 from src.text.paragraphs import assign_paragraph_ids
 
 console = Console()
+
+
+class LensFinding(BaseModel):
+    focus_area: str = Field(description="렌즈 focus area 또는 분석 축")
+    paragraph_id: str = Field(description="근거 문단 ID, 예: P_0001")
+    source_quote: str = Field(description="근거 문단에서 그대로 복사한 verbatim 인용")
+    analysis: str = Field(description="source_quote에 묶인 짧은 분석")
+
+
+class LensAnalysisReport(BaseModel):
+    lens: str
+    executive_summary: str
+    findings: list[LensFinding]
+    limitations: list[str] = []
+
 
 class LensAnalyzer:
     """렌즈 기반 source-bound briefing 생성기.
@@ -69,6 +85,83 @@ class LensAnalyzer:
         lines.append("- Which claims lack direct textual support in the selected source windows?")
         return "\n".join(lines)
 
+    def build_llm_analysis(
+        self,
+        target_document: str,
+        lens_name: str,
+        llm_provider,
+    ) -> LensAnalysisReport:
+        lens_config = load_lens(lens_name, self.lens_dir)
+        annotated, paragraph_map = assign_paragraph_ids(target_document)
+        prompt = (
+            "Create a concise source-bound lens analysis.\n"
+            "Hard rules:\n"
+            "- Every finding must cite a real paragraph_id from the supplied [P_XXXX] markers.\n"
+            "- Every finding.source_quote must be an exact substring of that paragraph.\n"
+            "- Do not add claims that are not supported by the supplied document.\n"
+            "- Preserve unresolved tensions rather than harmonizing them.\n\n"
+            f"Lens ID: {lens_name}\n"
+            f"Lens Name: {lens_config.get('name', lens_name)}\n"
+            f"Focus Areas: {lens_config.get('focus_areas', []) or []}\n"
+            f"Analysis Prompt:\n{lens_config.get('analysis_prompt', '')}\n\n"
+            f"Document:\n{annotated}"
+        )
+        report = llm_provider.generate_structured_output(prompt, LensAnalysisReport)
+        self._verify_analysis_grounding(report, paragraph_map)
+        return report
+
+    @staticmethod
+    def _verify_analysis_grounding(
+        report: LensAnalysisReport,
+        paragraph_map: dict[str, str],
+    ) -> None:
+        for finding in report.findings:
+            source = paragraph_map.get(finding.paragraph_id)
+            if source is None:
+                raise ValueError(
+                    f"LLM lens analysis used unknown paragraph_id: {finding.paragraph_id}"
+                )
+            if finding.source_quote not in source:
+                raise ValueError(
+                    "LLM lens analysis source_quote is not present in paragraph "
+                    f"{finding.paragraph_id}: {finding.source_quote}"
+                )
+
+    @staticmethod
+    def render_analysis(report: LensAnalysisReport) -> str:
+        lines = [
+            "# Lens LLM Analysis",
+            "",
+            f"- **Lens**: {report.lens}",
+            "",
+            "## Executive Summary",
+            report.executive_summary,
+            "",
+            "## Findings",
+        ]
+        if report.findings:
+            for finding in report.findings:
+                lines.append(f"### {finding.focus_area} ({finding.paragraph_id})")
+                lines.append(f"> {finding.source_quote}")
+                lines.append("")
+                lines.append(finding.analysis)
+        else:
+            lines.append("_No findings returned._")
+
+        lines.append("\n## Limitations")
+        if report.limitations:
+            lines.extend(f"- {item}" for item in report.limitations)
+        else:
+            lines.append("- No limitations returned.")
+        return "\n".join(lines)
+
+    def print_brief(self, brief: str) -> None:
+        self.console.print(Panel(brief, title="👓 Source-Bound Lens Brief", border_style="blue"))
+        self.console.print(
+            "\n[bold yellow]⚠️ 실 LLM 해석 리포트가 아니라, 원문 문단에 묶인 "
+            "분석 준비용 brief입니다.[/bold yellow]"
+        )
+
     def analyze(self, target_document: str, lens_name: str) -> bool:
         self.console.print(
             f"\n[bold magenta]🎯 [Lens Briefing Scaffold] (렌즈: {lens_name})[/bold magenta]"
@@ -79,9 +172,5 @@ class LensAnalyzer:
             self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
             return False
 
-        self.console.print(Panel(brief, title="👓 Source-Bound Lens Brief", border_style="blue"))
-        self.console.print(
-            "\n[bold yellow]⚠️ 실 LLM 해석 리포트가 아니라, 원문 문단에 묶인 "
-            "분석 준비용 brief입니다.[/bold yellow]"
-        )
+        self.print_brief(brief)
         return True

@@ -14,7 +14,8 @@ except ImportError:
 from pydantic import BaseModel
 from rich.console import Console
 
-from src.store.run_store import RunStore, _file_integrity, export_to_vault
+from src.store.run_store import RunStore, export_to_vault, verify_artifact_manifest
+from src.supervisor import run_status
 
 console = Console()
 
@@ -35,6 +36,7 @@ class RouterRequest(BaseModel):
     vault_path: str = ""
     no_cache: bool = False
     snowball: str = ""
+    llm_analysis: bool = False
 
 
 def _resolve_document(query: str) -> str:
@@ -158,18 +160,7 @@ def _verify_run(run_ref: str, base: str = "runs") -> tuple[bool, list[str]]:
     if not artifact_manifest:
         return False, ["manifest에 artifact_manifest가 없습니다."]
 
-    issues: list[str] = []
-    for name, expected in artifact_manifest.items():
-        current = _file_integrity(run_dir / name)
-        if bool(current.get("exists")) != bool(expected.get("exists")):
-            issues.append(f"{name}: exists mismatch expected={expected.get('exists')} actual={current.get('exists')}")
-            continue
-        if not current.get("exists"):
-            continue
-        if int(current.get("bytes") or 0) != int(expected.get("bytes") or 0):
-            issues.append(f"{name}: byte size mismatch expected={expected.get('bytes')} actual={current.get('bytes')}")
-        if current.get("sha256") != expected.get("sha256"):
-            issues.append(f"{name}: sha256 mismatch")
+    issues = verify_artifact_manifest(run_dir, artifact_manifest)
     return not issues, issues
 
 
@@ -197,12 +188,8 @@ class OmniSupervisorRouter:
         self.console.print(f"Lens 장착: [yellow]{request.lens}[/yellow]")
         self.use_mock = request.use_mock
 
-        if request.target_module == ModuleType.ANALYZE:
-            self._run_analyze(_resolve_document(request.query), request.lens)
-            return
-
         store = RunStore.create(request.query, request.lens, mock=request.use_mock)
-        store.note("status", "running")
+        store.note("status", run_status.RUNNING)
         try:
             if request.target_module == ModuleType.RECON:
                 await self._run_recon(
@@ -212,10 +199,17 @@ class OmniSupervisorRouter:
                 )
             elif request.target_module == ModuleType.ONTOLOGY:
                 self._run_ontology(store, _resolve_document(request.query))
-            if store._meta.get("status") == "running":
-                store.note("status", "completed")
+            elif request.target_module == ModuleType.ANALYZE:
+                self._run_analyze(
+                    store,
+                    _resolve_document(request.query),
+                    request.lens,
+                    llm_analysis=request.llm_analysis,
+                )
+            if store._meta.get("status") == run_status.RUNNING:
+                store.note("status", run_status.COMPLETED)
         except Exception as e:
-            store.note("status", "failed")
+            store.note("status", run_status.FAILED)
             store.note("error_message", str(e))
             self.console.print(f"\n[bold red]🚨 Supervisor 실행 중 에러 발생: {e}[/bold red]")
             raise e
@@ -271,19 +265,19 @@ class OmniSupervisorRouter:
         store.note("recon_cache", engine.cache_report)
 
         if not papers:
-            store.note("status", "no_papers_found")
+            store.note("status", run_status.NO_PAPERS_FOUND)
             self.console.print("[bold red]검색된 논문이 없습니다. 정찰을 종료합니다.[/bold red]")
             return
 
         choice = Prompt.ask("\n[bold cyan]딥다이브할 논문 번호를 승인해 주십시오 (종료: q)[/bold cyan]")
         if choice.lower() == 'q' or not choice.isdigit():
-            store.note("status", "cancelled_by_user")
+            store.note("status", run_status.CANCELLED_BY_USER)
             self.console.print("정찰 모듈을 종료합니다.")
             return
 
         idx = int(choice) - 1
         if not (0 <= idx < len(papers)):
-            store.note("status", "invalid_choice")
+            store.note("status", run_status.INVALID_CHOICE)
             self.console.print("[bold red]잘못된 번호입니다.[/bold red]")
             return
 
@@ -295,7 +289,7 @@ class OmniSupervisorRouter:
             # Content-Type 우선 판별(확장자 없는 PDF: arXiv /pdf/, doi 리다이렉트)
             scraper = await ScraperFactory.detect(target_paper.url)
         except ValueError as e:
-            store.note("status", "scraper_detection_failed")
+            store.note("status", run_status.SCRAPER_DETECTION_FAILED)
             store.note("error_message", str(e))
             self.console.print(f"[bold red]스크래퍼 선택 불가: {e}[/bold red]")
             return
@@ -311,7 +305,7 @@ class OmniSupervisorRouter:
             except NotImplementedError:
                 markdown_text = ""
         if not markdown_text:
-            store.note("status", "scraping_failed")
+            store.note("status", run_status.SCRAPING_FAILED)
             self.console.print("[bold red]원문 스크래핑에 실패했습니다.[/bold red]")
             return
 
@@ -347,13 +341,50 @@ class OmniSupervisorRouter:
                 "[bold red]⚠️ Audit Gate에서 반려되었습니다. (Fail-Fast 발동)[/bold red]"
             )
 
-    def _run_analyze(self, target_document: str, lens: str):
+    def _run_analyze(
+        self,
+        store: RunStore,
+        target_document: str,
+        lens: str,
+        *,
+        llm_analysis: bool = False,
+    ):
         from src.analyze.lens_analyzer import LensAnalyzer
+        from src.config.lens import LensNotFoundError
 
-        LensAnalyzer().analyze(target_document, lens)
+        analyzer = LensAnalyzer()
         self.console.print(
-            "   => [bold yellow]렌즈 brief 생성 완료 (실 LLM 해석 리포트는 미구현)[/bold yellow]"
+            f"\n[bold magenta]🎯 [Lens Briefing Scaffold] (렌즈: {lens})[/bold magenta]"
         )
+        try:
+            brief = analyzer.build_brief(target_document, lens)
+        except LensNotFoundError as e:
+            store.note("status", run_status.ANALYSIS_FAILED)
+            self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
+            return
+
+        analyzer.print_brief(brief)
+        store.write_lens_brief(brief)
+        if llm_analysis:
+            report = analyzer.build_llm_analysis(
+                target_document,
+                lens,
+                _make_provider(self.use_mock),
+            )
+            store.write_lens_analysis(report, analyzer.render_analysis(report))
+            self.console.print(
+                "   => [bold green]LLM lens analysis 저장 완료: "
+                "lens_analysis.json, lens_analysis.md[/bold green]"
+            )
+        if llm_analysis:
+            self.console.print(
+                "   => [bold yellow]렌즈 brief 저장 완료: lens_brief.md[/bold yellow]"
+            )
+        else:
+            self.console.print(
+                "   => [bold yellow]렌즈 brief 저장 완료: lens_brief.md "
+                "(LLM 분석은 --llm-analysis 필요)[/bold yellow]"
+            )
 
 
 def main():
@@ -390,6 +421,10 @@ def main():
     parser.add_argument(
         "--snowball", type=str, default="",
         help="키워드 검색 대신 seed DOI의 인용 네트워크 정찰(OpenAlex)",
+    )
+    parser.add_argument(
+        "--llm-analysis", action="store_true",
+        help="analyze 모듈에서 source-bound LLM 분석 MVP를 추가 생성",
     )
     parser.add_argument(
         "--status", action="store_true",
@@ -452,6 +487,7 @@ def main():
         vault_path=args.vault_path,
         no_cache=args.no_cache,
         snowball=args.snowball,
+        llm_analysis=args.llm_analysis,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))

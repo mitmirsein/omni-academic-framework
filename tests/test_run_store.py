@@ -123,6 +123,19 @@ def test_vault_export_writes_draft_when_approved(tmp_path):
     assert "first claim" in draft
 
 
+def test_vault_export_refuses_tampered_artifact(tmp_path):
+    vault = tmp_path / "vault"
+    (vault / "000 System" / "Inbox" / "Drafts").mkdir(parents=True)
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path / "runs"))
+    store.write_audit(AuditReport(passed=True, score=100, findings=[],
+                                  checked_at="2026-05-19T00:00:00+00:00"))
+    run_dir = store.finalize()
+    (run_dir / "report.md").write_text("tampered", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="무결성"):
+        export_to_vault(store, str(vault), ontology=_ontology())
+
+
 def test_report_includes_audit_and_forensic_findings(tmp_path):
     store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
     finding = AuditFinding(
@@ -180,3 +193,15 @@ def test_report_includes_provenance_artifacts_and_cache(tmp_path):
     assert "`CrossrefClient`: HIT, age=12s" in report
     assert "### [1] Paper" in report
     assert "- No audit findings." in report
+
+
+def test_report_includes_failure_diagnostics(tmp_path):
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
+    store.note("status", "scraping_failed")
+    store.note("error_message", "PDF extractor returned empty text")
+    run_dir = store.finalize()
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "## Failure Diagnostics" in report
+    assert "no Markdown full text was produced" in report
+    assert "PDF extractor returned empty text" in report

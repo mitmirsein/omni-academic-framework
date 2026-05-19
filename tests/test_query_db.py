@@ -162,3 +162,18 @@ def test_query_db_rejects_status_filter_on_legacy_schema(tmp_path):
 
     assert proc.returncode == 2
     assert "status" in proc.stderr
+
+
+def test_query_db_rejects_unknown_status_value(tmp_path):
+    _make_db(tmp_path)
+
+    proc = subprocess.run(
+        [sys.executable, str(SCRIPT), "--status", "done-ish"],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert proc.returncode == 2
+    assert "invalid choice" in proc.stderr

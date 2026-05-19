@@ -2,7 +2,7 @@
 
 이 문서는 `omni-academic-framework`를 실제로 운용하기 위한 상세 매뉴얼이다. 프레임워크의 목적은 학술 질의나 원문 텍스트를 정찰하고, 필요한 경우 원문을 징발한 뒤, 문단 근거에 고정된 온톨로지 맵을 생성하고, 감사 결과가 통과한 산출물만 로컬 지식 저장소로 내보내는 것이다.
 
-현재 상태는 프로토타입이다. 모든 기능이 완전 자동 연구 에이전트로 닫혀 있는 것은 아니며, HITL 승인, 외부 API 가용성, LLM provider 설정, 원문 접근 가능성에 따라 생성되는 산출물이 달라진다. 이 문서는 구현된 동작을 기준으로 작성한다.
+현재 상태는 프로토타입 v0.6.0이다. 모든 기능이 완전 자동 연구 에이전트로 닫혀 있는 것은 아니며, HITL 승인, 외부 API 가용성, LLM provider 설정, 원문 접근 가능성에 따라 생성되는 산출물이 달라진다. 이 문서는 구현된 동작을 기준으로 작성한다.
 
 ---
 
@@ -66,6 +66,7 @@ graph TD
 | Ontology | 문단 ID와 근거 인용을 포함한 노드/엣지 생성 | `ontology.json` |
 | Audit | paragraph_id와 source_quote를 기계적으로 대조 | `audit.json` |
 | Forensic | DOI/URL 실존성 확인, 유령 인용 차단 | `forensic.json` |
+| Analyze | 렌즈 focus/prompt와 원문 문단 window를 묶은 분석 준비 brief 생성 | `lens_brief.md` |
 | RunStore | 모든 실행의 상태와 산출물을 보존 | `report.md`, `manifest.json`, `runs/index.db` |
 
 ---
@@ -221,7 +222,15 @@ uv run omni ./paper.md --module ontology --lens general --mock
 uv run omni ./paper.md --module analyze --lens theology
 ```
 
-현재 LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니다. 대신 렌즈 focus/prompt와 실제 원문 문단 window를 묶은 source-bound briefing scaffold를 출력한다. 이 출력은 후속 분석 준비용이며, 모델이 새 통찰을 생성했다고 간주하면 안 된다.
+현재 LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니다. 대신 렌즈 focus/prompt와 실제 원문 문단 window를 묶은 source-bound briefing scaffold를 출력하고, 같은 내용을 해당 run의 `lens_brief.md` artifact로 저장한다. 이 출력은 후속 분석 준비용이며, 모델이 새 통찰을 생성했다고 간주하면 안 된다.
+
+실 LLM 분석 MVP를 함께 생성하려면 명시적으로 `--llm-analysis`를 붙인다.
+
+```bash
+uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-analysis
+```
+
+이 모드는 `ANTHROPIC_API_KEY`와 `anthropic` optional extra가 필요하다. 결과는 `lens_analysis.json`과 `lens_analysis.md`로 저장된다. 각 finding은 `paragraph_id`와 verbatim `source_quote`를 포함해야 하며, 코드가 source_quote가 해당 문단에 실제 존재하는지 다시 검증한다. `--mock --llm-analysis`는 네트워크 없이 저장 경로와 grounding 검증만 점검하는 테스트 모드다.
 
 ### 검증 산출물 내보내기
 
@@ -234,6 +243,7 @@ uv run omni ./paper.md --module ontology --lens general --export-vault --vault-p
 - mock run이 아니어야 한다.
 - `audit_passed`가 true여야 한다.
 - `forensic_passed`가 false이면 거부된다.
+- `artifact_manifest` 기준 무결성 검증이 통과해야 한다. export 직전에 artifact 파일의 존재 여부, byte size, sha256을 다시 계산하므로 run 저장 후 파일이 변조되면 내보내기가 거부된다.
 - 저장소 루트가 실제 디렉터리여야 한다.
 
 현재 export 경로는 로컬 저장소 루트 아래 `000 System/Inbox/Drafts/`다. 이 경로가 없으면 생성한다.
@@ -330,7 +340,7 @@ runs/
 | `mock` | MockProvider 사용 여부 |
 | `git_commit` | 실행 당시 Git commit |
 | `audit_passed` | AuditGate 통과 여부 |
-| `status` | running/completed/cancelled/scraping_failed 등 실행 상태 |
+| `status` | 표준 실행 상태. 현재 값: `running`, `completed`, `failed`, `no_papers_found`, `cancelled_by_user`, `invalid_choice`, `scraper_detection_failed`, `scraping_failed`, `analysis_failed`, `unknown` |
 | `recon_cache` | client별 캐시 hit/age 정보 |
 | `artifacts` | 실제 생성된 파일 목록 |
 | `artifact_manifest` | artifact별 `exists`, `bytes`, `sha256` 무결성 정보 |
@@ -344,12 +354,15 @@ runs/
 - executive summary: status, query, lens, mock/live, audit, forensic 상태
 - provenance: run id, 생성 시각, Git commit, run directory
 - artifact index: `digest.json`, `ontology.json`, `audit.json` 등 상대 링크
+- analyze run에서는 `lens_brief.md` 상대 링크
+- `--llm-analysis` 실행 시 `lens_analysis.json`, `lens_analysis.md` 상대 링크
 - recon cache provenance: client별 hit/miss와 cache age
 - recon 후보 요약: 저자, venue, citation count, DOI/URL, abstract excerpt
 - ontology node/edge 요약: class, paragraph_id, source_quote excerpt, relation reasoning
 - audit status 및 score
 - audit findings
 - forensic findings
+- 실패 run의 경우 failure diagnostics: 상태별 가능 원인, 기록된 error message, forensic 차단 수
 
 정밀 재현이나 프로그램 처리에는 `report.md`보다 JSON 파일을 우선 사용한다.
 
@@ -477,7 +490,7 @@ uv run python src/store/query_db.py --db runs/index.db --failed
 | `--limit N` | 최대 N건 조회 |
 | `--json` | 표 대신 JSON 배열 출력 |
 | `--db PATH` | 기본 `runs/index.db` 대신 다른 DB 조회 |
-| `--status VALUE` | `status` 컬럼 값으로 조회 |
+| `--status VALUE` | 표준 `status` 값으로 조회. 오타 값은 argparse 단계에서 거부 |
 | `--forensic-passed` | `forensic_passed = 1` |
 | `--forensic-failed` | `forensic_passed = 0` |
 

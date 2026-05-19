@@ -83,6 +83,30 @@ def _artifact_link(name: str) -> str:
     return f"- [`{name}`](./{name})"
 
 
+def _failure_diagnostic(status: str, meta: dict) -> list[str]:
+    diagnostics = {
+        "failed": "Unhandled exception. Check `error_message`, traceback in terminal logs, and the git commit recorded below.",
+        "no_papers_found": "Recon completed but returned no candidates. Try a broader query, a different lens, or `--no-cache` if stale cache is suspected.",
+        "cancelled_by_user": "The run stopped at HITL selection. No deep-dive scrape or ontology extraction was attempted.",
+        "invalid_choice": "The HITL paper selection did not match an available digest index. Re-run and choose a listed number.",
+        "scraper_detection_failed": "ScraperFactory could not select a supported scraper for the selected URL. Check the URL and content type.",
+        "scraping_failed": "A scraper was selected, but no Markdown full text was produced. Check source access, PDF extraction, or external tool configuration.",
+        "analysis_failed": "Lens briefing failed before artifact creation. Check that the requested lens exists under `lenses/`.",
+    }
+    message = diagnostics.get(str(status or ""))
+    if not message:
+        return []
+    lines = [f"- **Likely Cause**: {message}"]
+    if meta.get("error_message"):
+        lines.append(f"- **Recorded Error**: `{meta['error_message']}`")
+    if meta.get("forensic_blocked_count"):
+        lines.append(
+            f"- **Forensic Blocks**: `{meta['forensic_blocked_count']}` paper(s) "
+            "were removed before HITL selection."
+        )
+    return lines
+
+
 def _file_integrity(path: Path) -> dict:
     if not path.is_file():
         return {"exists": False, "bytes": 0, "sha256": None}
@@ -92,6 +116,31 @@ def _file_integrity(path: Path) -> dict:
         "bytes": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
     }
+
+
+def verify_artifact_manifest(run_dir: Path, artifact_manifest: dict) -> list[str]:
+    if not artifact_manifest:
+        return ["manifest에 artifact_manifest가 없습니다."]
+
+    issues: list[str] = []
+    for name, expected in artifact_manifest.items():
+        current = _file_integrity(run_dir / name)
+        if bool(current.get("exists")) != bool(expected.get("exists")):
+            issues.append(
+                f"{name}: exists mismatch expected={expected.get('exists')} "
+                f"actual={current.get('exists')}"
+            )
+            continue
+        if not current.get("exists"):
+            continue
+        if int(current.get("bytes") or 0) != int(expected.get("bytes") or 0):
+            issues.append(
+                f"{name}: byte size mismatch expected={expected.get('bytes')} "
+                f"actual={current.get('bytes')}"
+            )
+        if current.get("sha256") != expected.get("sha256"):
+            issues.append(f"{name}: sha256 mismatch")
+    return issues
 
 
 class RunStore:
@@ -176,6 +225,15 @@ class RunStore:
         self._forensic = findings
         self._write_json("forensic.json", findings)
 
+    def write_lens_brief(self, markdown: str):
+        (self.dir / "lens_brief.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("lens_brief.md")
+
+    def write_lens_analysis(self, report, markdown: str):
+        self._write_json("lens_analysis.json", report)
+        (self.dir / "lens_analysis.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("lens_analysis.md")
+
     def _generate_markdown_report(self):
         status = self._meta.get("status", "unknown")
         audit_passed = self._meta.get("audit_passed")
@@ -194,6 +252,10 @@ class RunStore:
         ]
         if self._meta.get("error_message"):
             lines.append(f"- **Error Message**: `{self._meta['error_message']}`")
+        diagnostic = _failure_diagnostic(str(status), self._meta)
+        if diagnostic:
+            lines.extend(["", "## Failure Diagnostics"])
+            lines.extend(diagnostic)
         lines.extend([
             "",
             "## Provenance",
@@ -391,6 +453,13 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
         raise ValueError(
             "export-vault 거부: Gate 2 forensic 실패(유령 인용) 산출물은 승격 불가."
         )
+    integrity_issues = verify_artifact_manifest(
+        store.dir, store._meta.get("artifact_manifest") or {}
+    )
+    if integrity_issues:
+        preview = "; ".join(integrity_issues[:3])
+        suffix = " ..." if len(integrity_issues) > 3 else ""
+        raise ValueError(f"export-vault 거부: artifact 무결성 실패: {preview}{suffix}")
 
     drafts.mkdir(parents=True, exist_ok=True)
     nodes = list(getattr(ontology, "nodes", []) or [])

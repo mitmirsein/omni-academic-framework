@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from src.supervisor.run_status import RUN_STATUS_VALUES
 
 BASE_COLUMNS = ["run_id", "created_at", "query", "lens", "mock", "audit_passed", "dir"]
 OPTIONAL_COLUMNS = ["status", "forensic_passed", "artifacts_count"]
@@ -77,6 +78,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--status",
         default="",
+        choices=RUN_STATUS_VALUES,
         help="status 컬럼 값으로 필터링 (예: completed, no_papers_found)",
     )
     parser.add_argument(
