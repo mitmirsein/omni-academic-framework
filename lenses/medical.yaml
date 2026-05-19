@@ -1,5 +1,6 @@
 name: "Medicine & Life Sciences"
 recon_clients:
+  - pubmed
   - crossref
 focus_areas:
   - "Clinical Efficacy & Validity"

@@ -1,5 +1,6 @@
 name: "Theology & Religion"
 recon_clients:
+  - openalex
   - kci
   - crossref
 focus_areas:

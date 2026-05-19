@@ -1,5 +1,6 @@
 name: "Philosophy & Humanities"
 recon_clients:
+  - openalex
   - kci
   - crossref
 focus_areas:

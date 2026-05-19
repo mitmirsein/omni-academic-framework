@@ -211,6 +211,129 @@ class EconBizClient(BaseAPIClient):
         return []
 
 
+_NCBI_COMMON = {"db": "pubmed", "tool": "omni-academic-framework",
+                "email": "noreply@example.com"}
+
+
+class PubMedClient(BaseAPIClient):
+    """PubMed/NCBI E-utilities 플러그인 (키 불필요, httpx-native, 2-step).
+
+    esearch(JSON)로 PMID 목록 → esummary(JSON)로 메타데이터. 검증된 한계:
+    esummary에는 abstract가 없다(본문은 Phase B). 추측 파싱을 피하려고
+    실제 응답 스키마(esearchresult.idlist / result[<uid>])에만 의존한다.
+    """
+
+    ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
+    ESUMMARY = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
+
+    @staticmethod
+    def _parse(payload: dict) -> List[PaperMetadata]:
+        result = payload.get("result", {}) or {}
+        papers: List[PaperMetadata] = []
+        for uid in result.get("uids", []) or []:
+            rec = result.get(uid, {}) or {}
+            title = _norm(rec.get("title"))
+            if not title:
+                continue
+            doi = next(
+                (a.get("value") for a in rec.get("articleids", [])
+                 if a.get("idtype") == "doi"),
+                None,
+            )
+            papers.append(PaperMetadata(
+                title=f"[PubMed] {title}",
+                authors=[_norm(a.get("name")) for a in rec.get("authors", [])
+                         if a.get("name")] or ["저자 미상"],
+                abstract="초록 없음 (PubMed esummary 미제공 — 본문은 Phase B)",
+                doi=doi,
+                url=f"https://pubmed.ncbi.nlm.nih.gov/{uid}/",
+                venue=_norm(rec.get("source")) or None,
+            ))
+        return papers
+
+    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                es = await client.get(self.ESEARCH, params={
+                    **_NCBI_COMMON, "term": query,
+                    "retmax": max_results, "retmode": "json",
+                })
+                es.raise_for_status()
+                ids = es.json().get("esearchresult", {}).get("idlist", []) or []
+                if not ids:
+                    return []
+                summ = await client.get(self.ESUMMARY, params={
+                    **_NCBI_COMMON, "id": ",".join(ids), "retmode": "json",
+                })
+                summ.raise_for_status()
+                return self._parse(summ.json())
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]PubMed API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]PubMed 네트워크 요청 실패: {e}[/bold red]")
+        except (ValueError, KeyError) as e:
+            console.print(f"[bold red]PubMed 응답 파싱 실패: {e}[/bold red]")
+        return []
+
+
+class OpenAlexClient(BaseAPIClient):
+    """OpenAlex 플러그인 (CC0, 키 불필요, httpx-native, 단일 호출).
+
+    Crossref 상위호환 — 인문/신학 등 DOI 빈약 영역 커버. abstract는
+    inverted-index 형태라 위치 정렬로 재구성한다(없을 수 있음).
+    """
+
+    @staticmethod
+    def _abstract(inv: Optional[dict]) -> str:
+        if not inv:
+            return "초록 없음"
+        pairs = [(pos, w) for w, ps in inv.items() for pos in ps]
+        text = _norm(" ".join(w for _, w in sorted(pairs)))
+        return text[:200] + "..." if len(text) > 200 else (text or "초록 없음")
+
+    @staticmethod
+    def _parse(payload: dict) -> List[PaperMetadata]:
+        papers: List[PaperMetadata] = []
+        for r in payload.get("results", []) or []:
+            title = _norm(r.get("title") or r.get("display_name"))
+            if not title:
+                continue
+            loc = r.get("primary_location") or {}
+            src = loc.get("source") or {}
+            doi = r.get("doi")
+            papers.append(PaperMetadata(
+                title=f"[OpenAlex] {title}",
+                authors=[_norm((a.get("author") or {}).get("display_name"))
+                         for a in r.get("authorships", [])
+                         if (a.get("author") or {}).get("display_name")] or ["저자 미상"],
+                abstract=OpenAlexClient._abstract(r.get("abstract_inverted_index")),
+                doi=doi.replace("https://doi.org/", "") if doi else None,
+                url=loc.get("landing_page_url") or doi or r.get("id"),
+                citation_count=r.get("cited_by_count", 0) or 0,
+                venue=_norm(src.get("display_name")) or None,
+            ))
+        return papers
+
+    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        params = urllib.parse.urlencode({
+            "search": query, "per-page": max_results,
+            "mailto": "noreply@example.com",
+        })
+        url = f"https://api.openalex.org/works?{params}"
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                return self._parse(response.json())
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]OpenAlex API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]OpenAlex 네트워크 요청 실패: {e}[/bold red]")
+        except (ValueError, KeyError) as e:
+            console.print(f"[bold red]OpenAlex 응답 파싱 실패: {e}[/bold red]")
+        return []
+
+
 # 클라이언트 이름 → 구현. 도메인↔클라이언트 매핑은 코드가 아니라
 # lenses/*.yaml 의 recon_clients 가 결정한다(헌법 §2: 도메인 독립성).
 CLIENT_FACTORY = {
@@ -218,6 +341,8 @@ CLIENT_FACTORY = {
     "kci": KCIClient,
     "crossref": CrossrefClient,
     "econbiz": EconBizClient,
+    "pubmed": PubMedClient,
+    "openalex": OpenAlexClient,
 }
 
 
