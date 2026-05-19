@@ -48,9 +48,37 @@ def test_run_store_writes_artifacts_and_manifest(tmp_path):
 
     # SQLite 인덱스 등재 확인
     conn = sqlite3.connect(tmp_path / "index.db")
-    row = conn.execute("SELECT mock, audit_passed FROM runs").fetchone()
+    row = conn.execute(
+        "SELECT mock, audit_passed, status, forensic_passed, artifacts_count FROM runs"
+    ).fetchone()
     conn.close()
-    assert row == (0, 1)
+    assert row == (0, 1, "unknown", None, 5)
+
+
+def test_run_store_index_migrates_status_columns(tmp_path):
+    conn = sqlite3.connect(tmp_path / "index.db")
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, created_at TEXT, query TEXT, "
+        "lens TEXT, mock INTEGER, audit_passed INTEGER, dir TEXT)"
+    )
+    conn.commit()
+    conn.close()
+
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
+    store.note("status", "completed")
+    store.note("forensic_passed", True)
+    store.write_audit(AuditReport(passed=True, score=100, findings=[],
+                                  checked_at="2026-05-19T00:00:00+00:00"))
+    store.finalize()
+
+    conn = sqlite3.connect(tmp_path / "index.db")
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+    row = conn.execute(
+        "SELECT status, forensic_passed, artifacts_count FROM runs"
+    ).fetchone()
+    conn.close()
+    assert {"status", "forensic_passed", "artifacts_count"}.issubset(cols)
+    assert row == ("completed", 1, 2)
 
 
 def test_mock_run_is_branded(tmp_path):

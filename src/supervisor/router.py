@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import os
 from enum import Enum
 from pathlib import Path
@@ -53,6 +54,92 @@ def _make_provider(use_mock: bool):
         return MockProvider()
     from src.llm.provider import AnthropicProvider
     return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
+
+def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
+    from src.config.lens import get_recon_client_names, load_lens
+
+    root = Path(lens_dir)
+    rows = []
+    if not root.is_dir():
+        return rows
+    for path in sorted(root.glob("*.yaml")):
+        try:
+            cfg = load_lens(path.stem, lens_dir)
+        except Exception:
+            continue
+        rows.append({
+            "id": path.stem,
+            "name": cfg.get("name", path.stem),
+            "clients": get_recon_client_names(cfg),
+            "focus": cfg.get("focus_areas", []) or [],
+        })
+    return rows
+
+
+def _print_lenses(lens_dir: str = "lenses") -> None:
+    from rich.table import Table
+
+    table = Table(title="Available Lenses")
+    table.add_column("ID", style="cyan", no_wrap=True)
+    table.add_column("Name")
+    table.add_column("Recon Clients")
+    table.add_column("Focus Areas")
+    for row in _list_lenses(lens_dir):
+        table.add_row(
+            row["id"],
+            str(row["name"]),
+            ", ".join(row["clients"]) or "-",
+            "; ".join(str(v) for v in row["focus"]) or "-",
+        )
+    console.print(table)
+
+
+def _resolve_run_dir(run_ref: str, base: str = "runs") -> Path:
+    base_path = Path(base)
+    ref = (run_ref or "").strip()
+    if not ref:
+        raise ValueError("run ref가 비어 있습니다.")
+    direct = Path(ref)
+    candidates = []
+    if direct.is_absolute():
+        candidates.append(direct)
+    candidates.extend([
+        base_path / ref,
+        base_path / ref / "latest",
+    ])
+    if "/" not in ref:
+        candidates.extend(sorted(base_path.glob(f"{ref}/*"), reverse=True))
+    for path in candidates:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        if resolved.is_dir() and (resolved / "manifest.json").is_file():
+            return resolved
+    raise ValueError(f"run을 찾을 수 없습니다: {run_ref}")
+
+
+def _show_run(run_ref: str, base: str = "runs") -> None:
+    run_dir = _resolve_run_dir(run_ref, base)
+    manifest_path = run_dir / "manifest.json"
+    report_path = run_dir / "report.md"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    console.print(f"[bold cyan]Run:[/bold cyan] {manifest.get('run_id')}")
+    console.print(f"- Status: `{manifest.get('status', 'unknown')}`")
+    console.print(f"- Query: {manifest.get('query')}")
+    console.print(f"- Lens: `{manifest.get('lens')}`")
+    console.print(f"- Mock: `{manifest.get('mock')}`")
+    console.print(f"- Audit Passed: `{manifest.get('audit_passed')}`")
+    if "forensic_passed" in manifest:
+        console.print(f"- Forensic Passed: `{manifest.get('forensic_passed')}`")
+    console.print(f"- Directory: `{run_dir}`")
+    console.print(f"- Manifest: `{manifest_path}`")
+    console.print(f"- Report: `{report_path}`")
+    artifacts = manifest.get("artifacts") or []
+    if artifacts:
+        console.print("- Artifacts: " + ", ".join(f"`{a}`" for a in artifacts))
 
 
 class OmniSupervisorRouter:
@@ -223,7 +310,7 @@ class OmniSupervisorRouter:
 
         LensAnalyzer().analyze(target_document, lens)
         self.console.print(
-            "   => [bold yellow]렌즈 스펙 프리뷰 완료 (실 분석은 BLUEPRINT)[/bold yellow]"
+            "   => [bold yellow]렌즈 brief 생성 완료 (실 LLM 해석 리포트는 미구현)[/bold yellow]"
         )
 
 
@@ -270,11 +357,30 @@ def main():
         "--setup", action="store_true",
         help="대화형 CLI 마법사를 통해 API Key 및 로컬 환경변수(.env) 설정",
     )
+    parser.add_argument(
+        "--list-lenses", action="store_true",
+        help="사용 가능한 렌즈와 recon client 목록을 출력",
+    )
+    parser.add_argument(
+        "--show-run", type=str, default="",
+        help="run id, query slug, 또는 run 디렉터리를 받아 manifest/report 위치를 출력",
+    )
     args = parser.parse_args()
 
     if args.setup:
         from src.supervisor.status import run_setup_wizard
         run_setup_wizard()
+        return
+
+    if args.list_lenses:
+        _print_lenses()
+        return
+
+    if args.show_run:
+        try:
+            _show_run(args.show_run)
+        except ValueError as e:
+            console.print(f"[bold red]{e}[/bold red]")
         return
 
     if args.status or not args.query:

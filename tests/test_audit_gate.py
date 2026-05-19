@@ -84,3 +84,43 @@ def test_quote_must_be_in_declared_paragraph():
 def test_legacy_manifest_set_skips_quote_check():
     report = AuditGate().verify_ontology(_map(), paragraph_manifest={"P_0001", "P_0002"})
     assert report.passed
+
+
+def test_short_quote_warns_but_does_not_fail():
+    report = AuditGate().verify_ontology(
+        _map(quote_a="Alpha"),
+        paragraph_manifest={
+            "P_0001": "Alpha appears here.",
+            "P_0002": "Beta method appears here.",
+        },
+    )
+    assert report.passed
+    assert any(f.code == "QUOTE_TOO_SHORT" for f in report.findings)
+
+
+def test_duplicate_node_quotes_warn():
+    report = AuditGate().verify_ontology(
+        _map(quote_a="Shared quote", quote_b="Shared quote"),
+        paragraph_manifest={
+            "P_0001": "Shared quote appears here.",
+            "P_0002": "Shared quote appears here too.",
+        },
+    )
+    assert report.passed
+    assert any(f.code == "DUPLICATE_NODE_QUOTE" for f in report.findings)
+
+
+def test_edge_quote_must_attach_to_endpoint_paragraphs():
+    m = _map(quote_a="Alpha claim", quote_b="Beta method")
+    m.edges[0].source_quote = "Gamma context"
+
+    report = AuditGate().verify_ontology(
+        m,
+        paragraph_manifest={
+            "P_0001": "Alpha claim appears here.",
+            "P_0002": "Beta method appears here.",
+            "P_0003": "Gamma context appears elsewhere.",
+        },
+    )
+    assert report.passed
+    assert any(f.code == "DETACHED_EDGE_QUOTE" for f in report.findings)

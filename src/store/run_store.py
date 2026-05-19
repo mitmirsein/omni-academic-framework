@@ -304,13 +304,13 @@ class RunStore:
         db = self._base / "index.db"
         conn = sqlite3.connect(db)
         try:
+            self._ensure_index_schema(conn)
+            forensic = self._meta.get("forensic_passed")
             conn.execute(
-                "CREATE TABLE IF NOT EXISTS runs ("
-                "run_id TEXT PRIMARY KEY, created_at TEXT, query TEXT, "
-                "lens TEXT, mock INTEGER, audit_passed INTEGER, dir TEXT)"
-            )
-            conn.execute(
-                "INSERT OR REPLACE INTO runs VALUES (?,?,?,?,?,?,?)",
+                "INSERT OR REPLACE INTO runs ("
+                "run_id, created_at, query, lens, mock, audit_passed, dir, "
+                "status, forensic_passed, artifacts_count"
+                ") VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (
                     self._meta["run_id"],
                     self._meta["created_at"],
@@ -320,11 +320,33 @@ class RunStore:
                     None if self._meta["audit_passed"] is None
                     else (1 if self._meta["audit_passed"] else 0),
                     str(self.dir),
+                    self._meta.get("status", "unknown"),
+                    None if forensic is None else (1 if forensic else 0),
+                    len(self._artifacts),
                 ),
             )
             conn.commit()
         finally:
             conn.close()
+
+    @staticmethod
+    def _ensure_index_schema(conn: sqlite3.Connection):
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS runs ("
+            "run_id TEXT PRIMARY KEY, created_at TEXT, query TEXT, "
+            "lens TEXT, mock INTEGER, audit_passed INTEGER, dir TEXT)"
+        )
+        existing = {
+            row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()
+        }
+        additions = {
+            "status": "TEXT",
+            "forensic_passed": "INTEGER",
+            "artifacts_count": "INTEGER",
+        }
+        for name, typ in additions.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {typ}")
 
 
 def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,

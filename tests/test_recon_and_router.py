@@ -1,6 +1,15 @@
 from src.recon.engine import PaperMetadata, ReconEngine
 from src.store.run_store import RunStore
-from src.supervisor.router import OmniSupervisorRouter, _resolve_document
+import json
+
+import pytest
+
+from src.supervisor.router import (
+    OmniSupervisorRouter,
+    _list_lenses,
+    _resolve_document,
+    _resolve_run_dir,
+)
 
 
 def test_noise_filter_drops_editorial_keeps_substring_safe():
@@ -21,6 +30,20 @@ def test_resolve_document_reads_file(tmp_path):
     assert _resolve_document(str(f)) == "real content"
 
 
+def test_example_sample_exists_and_mock_ontology_passes(tmp_path):
+    sample = "examples/sample.md"
+    text = _resolve_document(sample)
+    assert "Planning under uncertainty" in text
+
+    store = RunStore.create("sample.md", "general", mock=True, base=str(tmp_path))
+    router = OmniSupervisorRouter(use_mock=True)
+    router._run_ontology(store, text)
+    run_dir = store.finalize()
+
+    assert store._meta["audit_passed"] is True
+    assert (run_dir / "report.md").is_file()
+
+
 def test_resolve_document_inline_passthrough():
     assert _resolve_document("not a path, just a query") == "not a path, just a query"
 
@@ -36,3 +59,29 @@ def test_mock_ontology_path_passes_audit(tmp_path):
     assert (store.dir / "paragraphs.json").is_file()
     assert (store.dir / "ontology.json").is_file()
     assert (store.dir / "audit.json").is_file()
+
+
+def test_list_lenses_reads_registry():
+    lenses = _list_lenses("lenses")
+    ids = {row["id"] for row in lenses}
+    assert {"general", "theology", "economics"}.issubset(ids)
+    general = next(row for row in lenses if row["id"] == "general")
+    assert "crossref" in general["clients"]
+
+
+def test_resolve_run_dir_accepts_run_id_and_slug_latest(tmp_path):
+    run_dir = tmp_path / "runs" / "q" / "MOCK-20260519T000000Z"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": "q/MOCK-20260519T000000Z"}),
+        encoding="utf-8",
+    )
+    (tmp_path / "runs" / "q" / "latest").symlink_to("MOCK-20260519T000000Z")
+
+    assert _resolve_run_dir("q/MOCK-20260519T000000Z", str(tmp_path / "runs")) == run_dir
+    assert _resolve_run_dir("q", str(tmp_path / "runs")) == run_dir
+
+
+def test_resolve_run_dir_missing_raises(tmp_path):
+    with pytest.raises(ValueError):
+        _resolve_run_dir("missing", str(tmp_path / "runs"))

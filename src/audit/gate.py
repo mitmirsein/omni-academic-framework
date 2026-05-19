@@ -8,10 +8,40 @@ from src.ontology.extractor import OntologyMap
 
 console = Console()
 
+MIN_QUOTE_CHARS = 8
+MAX_QUOTE_CHARS = 200
+
 
 def _canon(text: str) -> str:
     """인용 대조용 정규화: 소문자 + 공백 단일화."""
     return " ".join((text or "").lower().split())
+
+
+def _quote_len(text: str) -> int:
+    return len("".join((text or "").split()))
+
+
+def _quote_quality_findings(
+    *,
+    quote: str,
+    label: str,
+    source_ref: Optional[str] = None,
+) -> List["AuditFinding"]:
+    findings: List[AuditFinding] = []
+    qlen = _quote_len(quote)
+    if qlen and qlen < MIN_QUOTE_CHARS:
+        findings.append(AuditFinding(
+            severity="warning", code="QUOTE_TOO_SHORT",
+            message=f"source_quote가 너무 짧아 검증력이 약함: {label}",
+            source_ref=source_ref,
+        ))
+    if qlen > MAX_QUOTE_CHARS:
+        findings.append(AuditFinding(
+            severity="warning", code="QUOTE_TOO_LONG",
+            message=f"source_quote가 너무 길어 근거 범위가 흐림: {label}",
+            source_ref=source_ref,
+        ))
+    return findings
 
 
 class AuditFinding(BaseModel):
@@ -58,6 +88,7 @@ class AuditGate:
 
         findings: List[AuditFinding] = []
         node_ids = {n.id for n in ontology.nodes}
+        node_by_id = {n.id: n for n in ontology.nodes}
         connected: Set[str] = set()
 
         for edge in ontology.edges:
@@ -133,8 +164,31 @@ class AuditGate:
                         ),
                         source_ref=node.id,
                     ))
+                else:
+                    findings.extend(_quote_quality_findings(
+                        quote=node.source_quote,
+                        label=node.label,
+                        source_ref=node.id,
+                    ))
 
             if has_text:
+                node_quote_refs: Dict[str, List[str]] = {}
+                for node in ontology.nodes:
+                    q = _canon(node.source_quote)
+                    if q:
+                        node_quote_refs.setdefault(q, []).append(node.id)
+                for refs in node_quote_refs.values():
+                    if len(refs) > 1:
+                        findings.append(AuditFinding(
+                            severity="warning", code="DUPLICATE_NODE_QUOTE",
+                            message=(
+                                "여러 노드가 동일한 source_quote를 재사용함: "
+                                + ", ".join(refs)
+                            ),
+                            source_ref=refs[0],
+                        ))
+
+                edge_quote_refs: Dict[str, List[str]] = {}
                 for edge in ontology.edges:
                     q = _canon(edge.source_quote)
                     if not q:
@@ -148,6 +202,37 @@ class AuditGate:
                             message=(
                                 f"엣지 인용이 원문에 없음(환각): "
                                 f"{edge.source_id}->{edge.target_id}"
+                            ),
+                        ))
+                    else:
+                        findings.extend(_quote_quality_findings(
+                            quote=edge.source_quote,
+                            label=f"{edge.source_id}->{edge.target_id}",
+                        ))
+                        edge_quote_refs.setdefault(q, []).append(
+                            f"{edge.source_id}->{edge.target_id}"
+                        )
+                        endpoint_paragraphs = []
+                        for node_id in (edge.source_id, edge.target_id):
+                            node = node_by_id.get(node_id)
+                            if node is not None and node.paragraph_id in paragraph_manifest:
+                                endpoint_paragraphs.append(paragraph_manifest[node.paragraph_id])
+                        endpoint_corpus = _canon(" ".join(endpoint_paragraphs))
+                        if endpoint_corpus and q not in endpoint_corpus:
+                            findings.append(AuditFinding(
+                                severity="warning", code="DETACHED_EDGE_QUOTE",
+                                message=(
+                                    "엣지 source_quote가 전체 원문에는 있으나 "
+                                    f"연결된 노드 문단에는 없음: {edge.source_id}->{edge.target_id}"
+                                ),
+                            ))
+                for refs in edge_quote_refs.values():
+                    if len(refs) > 1:
+                        findings.append(AuditFinding(
+                            severity="warning", code="DUPLICATE_EDGE_QUOTE",
+                            message=(
+                                "여러 엣지가 동일한 source_quote를 재사용함: "
+                                + ", ".join(refs)
                             ),
                         ))
 

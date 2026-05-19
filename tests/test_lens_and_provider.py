@@ -6,6 +6,7 @@ from src.config.lens import (
     load_lens,
 )
 from src.audit.gate import AuditGate
+from src.analyze.lens_analyzer import LensAnalyzer
 from src.llm.provider import AnthropicProvider, MockProvider
 from src.ontology.extractor import OntologyMap
 from src.recon.engine import ArxivClient, CrossrefClient, ReconEngine
@@ -52,3 +53,16 @@ def test_mock_provider_uses_real_paragraph_ids_and_quotes():
 
     report = AuditGate().verify_ontology(ontology, paragraph_manifest=paragraph_map)
     assert report.passed
+
+
+def test_lens_analyzer_builds_source_bound_brief():
+    brief = LensAnalyzer().build_brief(
+        "Alpha claim appears here.\n\nBeta method follows.",
+        "general",
+    )
+
+    assert "# Lens Briefing Scaffold" in brief
+    assert "General Academic" in brief
+    assert "P_0001" in brief
+    assert "Alpha claim appears here." in brief
+    assert "Review Questions" in brief
