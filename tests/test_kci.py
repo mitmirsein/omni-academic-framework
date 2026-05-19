@@ -176,3 +176,63 @@ def test_kci_oai_error_envelope_is_graceful_empty():
 def test_kci_oai_rejects_unknown_set_offline():
     # 잘못된 set은 네트워크 전에 차단(오프라인 안전)
     assert asyncio.run(KciOaiClient().harvest("BOGUS")) == []
+
+
+def _oai_page(token: str | None) -> bytes:
+    tok = f"<resumptionToken>{token}</resumptionToken>" if token else "<resumptionToken/>"
+    body = (
+        '<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"><ListRecords>'
+        '<record><header><identifier>oai:kci.go.kr:ARTI/ART%s</identifier></header>'
+        '<metadata><oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/"'
+        ' xmlns:dc="http://purl.org/dc/elements/1.1/">'
+        '<dc:title>Rec %s</dc:title><dc:creator>A</dc:creator></oai_dc:dc></metadata></record>'
+        '%s</ListRecords></OAI-PMH>'
+    )
+    n = token or "LAST"
+    return (body % (n, n, tok)).encode("utf-8")
+
+
+def test_kci_oai_follows_resumption_token(monkeypatch):
+    from src.recon import engine as engine_mod
+
+    seen_urls = []
+
+    class _Resp:
+        def __init__(self, content):
+            self.content = content
+
+        def raise_for_status(self):
+            pass
+
+    class _FakeClient:
+        def __init__(self, *a, **k):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, headers=None):
+            seen_urls.append(url)
+            if "resumptionToken=TOK1" in url:
+                return _Resp(_oai_page(None))      # 2페이지: 토큰 없음 → 종료
+            return _Resp(_oai_page("TOK1"))        # 1페이지: 토큰 TOK1
+
+    monkeypatch.setattr(engine_mod.httpx, "AsyncClient", lambda *a, **k: _FakeClient())
+
+    papers = asyncio.run(KciOaiClient().harvest("ARTI", max_records=50))
+    assert len(papers) == 2  # 두 페이지 누적
+
+    # OAI 규격: 1페이지는 metadataPrefix+set, 후속은 resumptionToken만
+    assert "metadataPrefix=oai_dc" in seen_urls[0] and "set=ARTI" in seen_urls[0]
+    assert "resumptionToken=TOK1" in seen_urls[1]
+    assert "metadataPrefix" not in seen_urls[1] and "set=ARTI" not in seen_urls[1]
+
+
+def test_kci_oai_parse_page_extracts_token():
+    papers, token = KciOaiClient._parse_page(_oai_page("ABC123"))
+    assert token == "ABC123" and len(papers) == 1
+    _, end = KciOaiClient._parse_page(_oai_page(None))
+    assert end is None  # 빈 resumptionToken = 마지막 페이지

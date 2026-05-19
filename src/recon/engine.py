@@ -479,6 +479,7 @@ class KciOaiClient:
 
     BASE = "https://open.kci.go.kr/oai/request"
     SETS = {"ARTI", "ARTI_CONF", "JOUR"}
+    MAX_PAGES = 50  # resumptionToken 추종 안전 상한 (runaway 방지)
 
     @staticmethod
     def _local(tag) -> str:
@@ -486,11 +487,20 @@ class KciOaiClient:
 
     @classmethod
     def _parse(cls, content: bytes) -> List[PaperMetadata]:
+        # 하위호환: 레코드만 반환(기존 테스트 계약 유지).
+        return cls._parse_page(content)[0]
+
+    @classmethod
+    def _parse_page(cls, content: bytes):
+        """(records, resumption_token) 반환. OAI-PMH 페이지네이션용.
+
+        빈/부재 resumptionToken은 OAI 규격상 '마지막 페이지' → None.
+        """
         try:
             root = ET.fromstring(content)
         except ET.ParseError as e:
             console.print(f"[bold red]KCI OAI XML 파싱 실패: {e}[/bold red]")
-            return []
+            return [], None
         L = cls._local
         err = next((el for el in root.iter() if L(el.tag) == "error"), None)
         if err is not None:
@@ -498,7 +508,12 @@ class KciOaiClient:
                 f"[bold red]KCI OAI 오류: {err.get('code') or ''} "
                 f"{(err.text or '').strip()}[/bold red]"
             )
-            return []
+            return [], None
+        tok_el = next(
+            (el for el in root.iter() if L(el.tag) == "resumptiontoken"), None
+        )
+        token = (tok_el.text or "").strip() if tok_el is not None else ""
+        token = token or None
         papers: List[PaperMetadata] = []
         for rec in [el for el in root.iter() if L(el.tag) == "record"]:
             header = next((c for c in rec if L(c.tag) == "header"), None)
@@ -539,7 +554,7 @@ class KciOaiClient:
                 doi=doi,
                 url=url,
             ))
-        return papers
+        return papers, token
 
     async def harvest(self, set_spec: str = "ARTI", max_records: int = 20,
                       metadata_prefix: str = "oai_dc") -> List[PaperMetadata]:
@@ -550,24 +565,43 @@ class KciOaiClient:
                 f"(허용: {sorted(self.SETS)})[/bold red]"
             )
             return []
-        params = urllib.parse.urlencode({
+
+        # OAI-PMH 규격: 1페이지는 verb+metadataPrefix+set, 이후 페이지는
+        # verb+resumptionToken만(다른 인자 동반 금지).
+        params = {
             "verb": "ListRecords",
             "metadataPrefix": metadata_prefix,
             "set": set_spec,
-        })
-        url = f"{self.BASE}?{params}"
+        }
+        papers: List[PaperMetadata] = []
+        seen_tokens: set = set()
         try:
             async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
-                resp = await client.get(
-                    url, headers={"User-Agent": "omni-academic-framework/0.6"}
-                )
-                resp.raise_for_status()
-                return self._parse(resp.content)[:max_records]
+                for _page in range(self.MAX_PAGES):
+                    url = f"{self.BASE}?{urllib.parse.urlencode(params)}"
+                    resp = await client.get(
+                        url, headers={"User-Agent": "omni-academic-framework/0.6"}
+                    )
+                    resp.raise_for_status()
+                    page_papers, token = self._parse_page(resp.content)
+                    papers.extend(page_papers)
+                    if len(papers) >= max_records or not token:
+                        break
+                    if token in seen_tokens:  # 토큰 반복 → 루프 방지
+                        break
+                    seen_tokens.add(token)
+                    params = {"verb": "ListRecords", "resumptionToken": token}
+                else:
+                    console.print(
+                        f"[yellow]KCI OAI: 페이지 상한({self.MAX_PAGES}) 도달 — "
+                        "부분 결과 반환[/yellow]"
+                    )
         except httpx.HTTPStatusError as e:
             console.print(f"[bold red]KCI OAI API 에러 (상태 {e.response.status_code})[/bold red]")
         except httpx.RequestError as e:
             console.print(f"[bold red]KCI OAI 네트워크 실패: {e}[/bold red]")
-        return []
+        # 네트워크 실패해도 그때까지 수확분은 정직하게 반환(부분 성공).
+        return papers[:max_records]
 
 
 class CitationGraphClient:
