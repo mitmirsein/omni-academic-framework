@@ -40,9 +40,41 @@ class OmniSupervisorRouter:
 
     async def _run_recon(self, query: str, lens: str):
         from src.recon.engine import ReconEngine
+        from src.recon.scraper import ScraperFactory
+        from rich.prompt import Prompt
+        
         engine = ReconEngine()
         papers = await engine.search(query, lens=lens)
         engine.generate_digest(papers)
+        
+        if not papers:
+            self.console.print("[bold red]검색된 논문이 없습니다. 정찰을 종료합니다.[/bold red]")
+            return
+            
+        choice = Prompt.ask("\n[bold cyan]딥다이브할 논문 번호를 승인해 주십시오 (종료: q)[/bold cyan]")
+        
+        if choice.lower() == 'q' or not choice.isdigit():
+            self.console.print("정찰 모듈을 종료합니다.")
+            return
+            
+        idx = int(choice) - 1
+        if 0 <= idx < len(papers):
+            target_paper = papers[idx]
+            self.console.print(f"\n[bold magenta]HITL 승인됨: [{target_paper.title}][/bold magenta]")
+            self.console.print(f"URL: {target_paper.url}")
+            
+            # Scraper 가동
+            scraper = ScraperFactory.get_scraper(target_paper.url)
+            markdown_text = await scraper.fetch_markdown(target_paper.url)
+            
+            if markdown_text:
+                self.console.print("[bold green]원문 징발 성공! Ontology Extractor로 전달합니다...[/bold green]\n")
+                # E2E 파이프라인 연결: 바로 온톨로지 추출로 넘김
+                await self._run_ontology(markdown_text)
+            else:
+                self.console.print("[bold red]원문 스크래핑에 실패했습니다.[/bold red]")
+        else:
+            self.console.print("[bold red]잘못된 번호입니다.[/bold red]")
 
     async def _run_ontology(self, target_document: str):
         from src.ontology.extractor import OntologyExtractor
