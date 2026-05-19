@@ -1,0 +1,8 @@
+name: "Computer Science"
+focus_areas:
+  - "Architecture Efficiency & Performance"
+  - "Computational Complexity"
+  - "Scalability & Reproducibility"
+analysis_prompt: |
+  Evaluate the algorithmic performance and systemic tradeoffs.
+  Does the proposed system resolve known limitations? Focus on empirical validation.

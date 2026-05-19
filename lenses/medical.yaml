@@ -1,0 +1,8 @@
+name: "Medicine & Life Sciences"
+focus_areas:
+  - "Clinical Efficacy & Validity"
+  - "Side Effects & Toxicity"
+  - "Statistical Significance (p-value)"
+analysis_prompt: |
+  Evaluate the methodology for potential biases, sample size adequacy, and clinical outcomes.
+  Focus on the physiological mechanism and evidence-based results.

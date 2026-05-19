@@ -1,0 +1,8 @@
+name: "Philosophy & Humanities"
+focus_areas:
+  - "Epistemological Premises"
+  - "Ideological Critique"
+  - "Socio-historical Context"
+analysis_prompt: |
+  Deconstruct the argument to reveal its philosophical foundations.
+  Critique the logical flow and the social context that birthed these ideas.

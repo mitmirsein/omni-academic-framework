@@ -1,0 +1,8 @@
+name: "Economics & Finance"
+focus_areas:
+  - "Market Dynamics & Incentives"
+  - "Resource Allocation & Efficiency"
+  - "Macroeconomic & Microeconomic Impact"
+analysis_prompt: |
+  Analyze the proposed systems or arguments in terms of cost-benefit, incentive structures, and market behavior.
+  Identify potential externalities, deadweight losses, or shifts in resource distribution.

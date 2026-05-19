@@ -1,0 +1,8 @@
+name: "Theology & Religion"
+focus_areas:
+  - "Dogmatic & Hermeneutic Consistency"
+  - "Historical & Textual Context"
+  - "Pastoral Application & Implications"
+analysis_prompt: |
+  Examine the theological implications, underlying philosophical pre-commitments, and biblical grounding.
+  Are there any doctrinal tensions or historical shifts identified?
