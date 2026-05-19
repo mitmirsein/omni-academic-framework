@@ -44,7 +44,7 @@ def run_setup_wizard():
         ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
         ("SERPAPI_API_KEY", "SerpAPI API Key (구글 스콜라 키워드 검색용 - 선택)", "https://serpapi.com/"),
         ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
-        ("MS_BRAIN_VAULT", "Obsidian Vault 로컬 절대 경로 (예: /path/to/MS_Brain.nosync)", "로컬 볼트 연동용 절대 경로"),
+        ("ACADEMIC_VAULT_PATH", "Obsidian Vault 로컬 절대 경로 (예: /path/to/vault)", "로컬 볼트 연동용 절대 경로"),
         ("OMNI_LIGHTPANDA_BIN", "Lightpanda Headless Browser 실행 파일 경로 (생략 가능)", "로컬 바이너리 경로"),
         ("OMNI_PDF_EXTRACTOR", "PDF 텍스트 추출기 pdftotext 경로 (생략 가능)", "로컬 바이너리 경로")
     ]
@@ -144,7 +144,7 @@ def run_diagnostics():
     pdf_extractor_bin = resolve_tool("OMNI_PDF_EXTRACTOR", "pdftotext")
     
     # Vault Path
-    vault_path_env = os.environ.get("MS_BRAIN_VAULT", "").strip()
+    vault_path_env = os.environ.get("ACADEMIC_VAULT_PATH", "").strip()
     vault_status = "Not Set"
     vault_color = "yellow"
     if vault_path_env:
@@ -230,7 +230,7 @@ def run_diagnostics():
     # Vault
     table.add_row(
         "Workspace",
-        "MS_BRAIN_VAULT",
+        "ACADEMIC_VAULT_PATH",
         f"[{vault_color}]{vault_status}[/{vault_color}]",
         f"Vault 연동 경로: {vault_path_env or 'Unset'}"
     )

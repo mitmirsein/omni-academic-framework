@@ -240,7 +240,7 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
     """
     if not vault_path:
         raise ValueError(
-            "export-vault: --vault-path 또는 MS_BRAIN_VAULT가 필요합니다 "
+            "export-vault: --vault-path 또는 ACADEMIC_VAULT_PATH가 필요합니다 "
             "(경로 추측 금지)."
         )
     vault = Path(vault_path)

@@ -231,8 +231,8 @@ def main():
         help="audit 통과·non-mock 산출물을 볼트 Inbox/Drafts에 Markdown draft로 export",
     )
     parser.add_argument(
-        "--vault-path", type=str, default=os.environ.get("MS_BRAIN_VAULT", ""),
-        help="볼트 루트 경로 (미지정 시 MS_BRAIN_VAULT 환경변수). 추측하지 않음",
+        "--vault-path", type=str, default=os.environ.get("ACADEMIC_VAULT_PATH", ""),
+        help="볼트 루트 경로 (미지정 시 ACADEMIC_VAULT_PATH 환경변수). 추측하지 않음",
     )
     parser.add_argument(
         "--no-cache", action="store_true",

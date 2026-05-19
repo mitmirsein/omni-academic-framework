@@ -79,7 +79,7 @@ This framework relies on several external APIs to parse, enrich, and audit acade
 | **`SEMANTIC_SCHOLAR_API_KEY`** | High-performance academic search & citation graph retrieval | Optional (falls back to 3s/req rate-limiting) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
 | **`SERPAPI_API_KEY`** | SerpAPI-based Google Scholar keyword literature search | Optional (falls back to disabling Google Scholar searches) | [SerpAPI](https://serpapi.com/) |
 | **`JINA_API_KEY`** | Extracting high-fidelity Markdown from raw web pages or PDF URLs | Optional (falls back to public reader mode) | [Jina Reader API](https://jina.ai/reader/) |
-| **`MS_BRAIN_VAULT`** | Absolute path to local Obsidian vault (e.g. `/Users/username/Desktop/MS_Brain.nosync`) | Optional (for automatic Obsidian export) | Your local vault root path |
+| **`ACADEMIC_VAULT_PATH`** | Absolute path to local Obsidian vault (e.g. `/Users/username/Desktop/my-vault`) | Optional (for automatic Obsidian export) | Your local vault root path |
 
 ---
 *Omni-Academic Framework | MS_Dev Third Gen Standard*
