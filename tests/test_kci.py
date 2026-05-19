@@ -117,3 +117,62 @@ def test_kci_html_respects_max_results():
 
 def test_kci_html_empty_is_graceful():
     assert KCIClient._parse_html("<html><body>no results</body></html>", 5) == []
+
+
+# ── KCI OAI-PMH (무키 표준) ──────────────────────────────────────────────
+# OAI-PMH 2.0 + Dublin Core는 고정 표준. fixture는 표준 envelope에 KCI의
+# 검증된 식별자 체계(oai:kci.go.kr:ARTI/{artiId}, 사용자 실검증 2026-05)를
+# 끼운 것 — 파서가 표준 경로만 쓰는지 고정한다.
+import asyncio  # noqa: E402
+
+from src.recon.engine import KciOaiClient  # noqa: E402
+
+OAI_LISTRECORDS = """<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+ <responseDate>2026-05-19T00:00:00Z</responseDate>
+ <request verb="ListRecords" metadataPrefix="oai_dc" set="ARTI">https://open.kci.go.kr/oai/request</request>
+ <ListRecords>
+  <record>
+   <header><identifier>oai:kci.go.kr:ARTI/ART003327481</identifier><datestamp>2024-04-17</datestamp><setSpec>ARTI</setSpec></header>
+   <metadata>
+    <oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/" xmlns:dc="http://purl.org/dc/elements/1.1/">
+     <dc:title>Healing of Artificial Ulcers</dc:title>
+     <dc:creator>임현</dc:creator>
+     <dc:creator>김민수</dc:creator>
+     <dc:subject>소화기암학</dc:subject>
+     <dc:description>내시경 점막하 박리술로 유발된 인공 궤양의 치유와 관리에 관한 연구.</dc:description>
+     <dc:identifier>ISSN:1234-5678</dc:identifier>
+     <dc:identifier>10.1234/kci.2024.001</dc:identifier>
+    </oai_dc:dc>
+   </metadata>
+  </record>
+  <record>
+   <header status="deleted"><identifier>oai:kci.go.kr:ARTI/ARTDELETED</identifier></header>
+  </record>
+ </ListRecords>
+</OAI-PMH>
+""".encode("utf-8")
+
+OAI_ERROR = b"""<?xml version="1.0"?><OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
+<error code="badArgument">metadataPrefix required</error></OAI-PMH>"""
+
+
+def test_kci_oai_parse_standard_dc():
+    papers = KciOaiClient._parse(OAI_LISTRECORDS)
+    assert len(papers) == 1  # deleted 레코드는 스킵
+    p = papers[0]
+    assert p.title == "[KCI] Healing of Artificial Ulcers"
+    assert p.authors == ["임현", "김민수"]
+    assert p.abstract.startswith("내시경 점막하")
+    assert p.doi == "10.1234/kci.2024.001"  # 10.x identifier만 DOI
+    # 검증된 식별자 체계로 landing URL 구성
+    assert p.url.endswith("ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003327481")
+
+
+def test_kci_oai_error_envelope_is_graceful_empty():
+    assert KciOaiClient._parse(OAI_ERROR) == []
+
+
+def test_kci_oai_rejects_unknown_set_offline():
+    # 잘못된 set은 네트워크 전에 차단(오프라인 안전)
+    assert asyncio.run(KciOaiClient().harvest("BOGUS")) == []

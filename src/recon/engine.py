@@ -465,6 +465,111 @@ class OpenAlexClient(BaseAPIClient):
         return []
 
 
+class KciOaiClient:
+    """KCI OAI-PMH 수확 클라이언트 (무키·표준 oai_dc).
+
+    실 검증(2026-05): base `https://open.kci.go.kr/oai/request`, 무인증,
+    포맷 oai_dc/oai_kci, set ARTI/ARTI_CONF/JOUR, 식별자
+    `oai:kci.go.kr:ARTI/{artiId}`. OAI-PMH는 *검색*이 아니라 *수확*
+    프로토콜(키워드 질의 없음)이라 `BaseAPIClient`(search)를 상속하지
+    않는다(인터페이스 비오염 — Snowball과 동일 원칙). 파싱은 OAI-PMH 2.0
+    + Dublin Core **표준**에만 의존하고 네임스페이스는 local-name으로
+    무력화한다(KCI 고유 경로 추측 0).
+    """
+
+    BASE = "https://open.kci.go.kr/oai/request"
+    SETS = {"ARTI", "ARTI_CONF", "JOUR"}
+
+    @staticmethod
+    def _local(tag) -> str:
+        return tag.rsplit("}", 1)[-1].lower() if isinstance(tag, str) else ""
+
+    @classmethod
+    def _parse(cls, content: bytes) -> List[PaperMetadata]:
+        try:
+            root = ET.fromstring(content)
+        except ET.ParseError as e:
+            console.print(f"[bold red]KCI OAI XML 파싱 실패: {e}[/bold red]")
+            return []
+        L = cls._local
+        err = next((el for el in root.iter() if L(el.tag) == "error"), None)
+        if err is not None:
+            console.print(
+                f"[bold red]KCI OAI 오류: {err.get('code') or ''} "
+                f"{(err.text or '').strip()}[/bold red]"
+            )
+            return []
+        papers: List[PaperMetadata] = []
+        for rec in [el for el in root.iter() if L(el.tag) == "record"]:
+            header = next((c for c in rec if L(c.tag) == "header"), None)
+            if header is not None and header.get("status") == "deleted":
+                continue
+            ident = ""
+            if header is not None:
+                ide = next((c for c in header if L(c.tag) == "identifier"), None)
+                ident = (ide.text or "").strip() if ide is not None else ""
+            arti_id = ident.rsplit("/", 1)[-1] if "/" in ident else ""
+            md = next((c for c in rec if L(c.tag) == "metadata"), None)
+            title, abstract, doi = None, None, None
+            authors: List[str] = []
+            if md is not None:
+                for el in md.iter():
+                    name, txt = L(el.tag), _norm(el.text)
+                    if not txt:
+                        continue
+                    if name == "title" and not title:
+                        title = txt
+                    elif name == "creator":
+                        authors.append(txt)
+                    elif name == "description" and not abstract:
+                        abstract = txt
+                    elif name == "identifier" and doi is None and txt.lower().startswith("10."):
+                        doi = txt
+            # url: 검증된 식별자 체계(oai:kci.go.kr:ARTI/{artiId}) +
+            # 렌더 DOM에서 확인한 ciSereArtiView 패턴 → 둘 다 실측 검증.
+            url = (
+                "https://www.kci.go.kr/kciportal/ci/sereArticleSearch/"
+                f"ciSereArtiView.kci?sereArticleSearchBean.artiId={arti_id}"
+                if arti_id else None
+            )
+            papers.append(PaperMetadata(
+                title=f"[KCI] {title or '제목 없음'}",
+                authors=authors or ["저자 미상"],
+                abstract=(abstract[:200] if abstract else "초록 없음"),
+                doi=doi,
+                url=url,
+            ))
+        return papers
+
+    async def harvest(self, set_spec: str = "ARTI", max_records: int = 20,
+                      metadata_prefix: str = "oai_dc") -> List[PaperMetadata]:
+        set_spec = (set_spec or "ARTI").strip().upper()
+        if set_spec not in self.SETS:
+            console.print(
+                f"[bold red]KCI OAI: 알 수 없는 set '{set_spec}' "
+                f"(허용: {sorted(self.SETS)})[/bold red]"
+            )
+            return []
+        params = urllib.parse.urlencode({
+            "verb": "ListRecords",
+            "metadataPrefix": metadata_prefix,
+            "set": set_spec,
+        })
+        url = f"{self.BASE}?{params}"
+        try:
+            async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+                resp = await client.get(
+                    url, headers={"User-Agent": "omni-academic-framework/0.6"}
+                )
+                resp.raise_for_status()
+                return self._parse(resp.content)[:max_records]
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]KCI OAI API 에러 (상태 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]KCI OAI 네트워크 실패: {e}[/bold red]")
+        return []
+
+
 class CitationGraphClient:
     """Snowballing — 인용 네트워크 정찰 (OpenAlex 백엔드).
 

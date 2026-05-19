@@ -36,6 +36,7 @@ class RouterRequest(BaseModel):
     vault_path: str = ""
     no_cache: bool = False
     snowball: str = ""
+    kci_harvest: str = ""
     llm_analysis: bool = False
     llm_critic: bool = False
 
@@ -212,7 +213,7 @@ class OmniSupervisorRouter:
                 await self._run_recon(
                     store, request.query, request.lens,
                     forensic=request.forensic, no_cache=request.no_cache,
-                    snowball=request.snowball,
+                    snowball=request.snowball, kci_harvest=request.kci_harvest,
                 )
             elif request.target_module == ModuleType.ONTOLOGY:
                 self._run_ontology(store, _resolve_document(request.query))
@@ -246,14 +247,21 @@ class OmniSupervisorRouter:
 
     async def _run_recon(self, store: RunStore, query: str, lens: str,
                           forensic: bool = False, no_cache: bool = False,
-                          snowball: str = ""):
+                          snowball: str = "", kci_harvest: str = ""):
         from rich.prompt import Prompt
 
-        from src.recon.engine import CitationGraphClient, ReconEngine
+        from src.recon.engine import CitationGraphClient, KciOaiClient, ReconEngine
         from src.recon.scraper import JinaReaderScraper, ScraperFactory
 
         engine = ReconEngine(use_cache=not no_cache)
-        if snowball:
+        if kci_harvest:
+            self.console.print(
+                f"[bold magenta]📚 KCI OAI-PMH 수확 모드 (set: {kci_harvest})[/bold magenta]"
+            )
+            papers = await KciOaiClient().harvest(kci_harvest)
+            store.note("mode", "kci_oai_harvest")
+            store.note("kci_set", kci_harvest)
+        elif snowball:
             self.console.print(
                 f"[bold magenta]🕸️ Snowball 모드 (seed DOI: {snowball})[/bold magenta]"
             )
@@ -494,6 +502,10 @@ def main():
         help="키워드 검색 대신 seed DOI의 인용 네트워크 정찰(OpenAlex)",
     )
     parser.add_argument(
+        "--kci-harvest", type=str, default="", choices=["", "ARTI", "ARTI_CONF", "JOUR"],
+        help="키워드 검색 대신 KCI OAI-PMH(무키 표준) set 수확: ARTI|ARTI_CONF|JOUR",
+    )
+    parser.add_argument(
         "--llm-analysis", action="store_true",
         help="analyze 모듈에서 source-bound LLM 분석 MVP를 추가 생성",
     )
@@ -562,6 +574,7 @@ def main():
         vault_path=args.vault_path,
         no_cache=args.no_cache,
         snowball=args.snowball,
+        kci_harvest=args.kci_harvest,
         llm_analysis=args.llm_analysis or args.llm_critic,
         llm_critic=args.llm_critic,
     )
