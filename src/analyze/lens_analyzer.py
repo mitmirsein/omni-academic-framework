@@ -71,7 +71,7 @@ class LensAnalyzer:
             "",
             f"- **Lens**: {name} (`{lens_name}`)",
             f"- **Paragraphs**: {len(paragraph_map)}",
-            f"- **Mode**: deterministic source-bound scaffold, not LLM interpretation",
+            "- **Mode**: deterministic source-bound scaffold, not LLM interpretation",
             "",
             "## Lens Focus",
         ]

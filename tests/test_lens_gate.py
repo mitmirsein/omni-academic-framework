@@ -1,13 +1,12 @@
 from src.analyze.lens_analyzer import (
     LensAnalysisReport,
+    LensAnalyzer,
     LensCriticReport,
     LensCritique,
     LensFinding,
 )
 from src.audit.lens_gate import LensComplianceAuditor
 from src.llm.provider import MockProvider
-from src.analyze.lens_analyzer import LensAnalyzer
-
 
 DOC = "Alpha claim appears here.\n\nBeta method follows."
 

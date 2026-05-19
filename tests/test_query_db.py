@@ -1,9 +1,8 @@
+import json
 import sqlite3
 import subprocess
 import sys
-import json
 from pathlib import Path
-
 
 SCRIPT = Path(__file__).resolve().parents[1] / "src" / "store" / "query_db.py"
 

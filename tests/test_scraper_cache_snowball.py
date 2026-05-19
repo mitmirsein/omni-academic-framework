@@ -1,13 +1,11 @@
 import asyncio
 
-import pytest
-
 from src.recon import engine as engine_mod
 from src.recon import scraper as scraper_mod
 from src.recon.engine import (
+    CLIENT_FACTORY,
     BaseAPIClient,
     CitationGraphClient,
-    CLIENT_FACTORY,
     PaperMetadata,
     ReconEngine,
     SerpApiScholarClient,

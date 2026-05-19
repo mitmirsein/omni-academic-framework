@@ -1,5 +1,5 @@
-import os
 import asyncio
+import os
 import urllib.parse
 import xml.etree.ElementTree as ET
 from typing import List, Optional
@@ -519,6 +519,7 @@ class SerpApiScholarClient(BaseAPIClient):
 
     def _parse_scholar_html(self, html: str, max_results: int) -> List[PaperMetadata]:
         import re
+
         from bs4 import BeautifulSoup
         soup = BeautifulSoup(html, "html.parser")
         papers = []

@@ -1,12 +1,12 @@
 import pytest
 
+from src.analyze.lens_analyzer import LensAnalysisReport, LensAnalyzer, LensCriticReport
+from src.audit.gate import AuditGate
 from src.config.lens import (
     LensNotFoundError,
     get_recon_client_names,
     load_lens,
 )
-from src.audit.gate import AuditGate
-from src.analyze.lens_analyzer import LensAnalyzer, LensAnalysisReport, LensCriticReport
 from src.llm.provider import AnthropicProvider, MockProvider
 from src.ontology.extractor import OntologyMap
 from src.recon.engine import ArxivClient, CrossrefClient, ReconEngine

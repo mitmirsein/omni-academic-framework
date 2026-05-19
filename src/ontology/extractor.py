@@ -1,6 +1,6 @@
-import json
 from enum import Enum
 from typing import List
+
 from pydantic import BaseModel, Field
 from rich.console import Console
 
