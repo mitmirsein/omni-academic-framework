@@ -72,6 +72,7 @@ status: Draft/V3-Palantir
 | **`OPENAI_API_KEY`** | ChatGPT 모델을 이용한 본문 가공 및 렌더링 | 선택 | [OpenAI Platform](https://platform.openai.com/) |
 | **`GEMINI_API_KEY`** | Gemini 모델을 이용한 다차원 분석 및 요약 | 선택 | [Google AI Studio](https://aistudio.google.com/) |
 | **`SEMANTIC_SCHOLAR_API_KEY`** | Semantic Scholar 기반 고속 학술 문헌 탐색 및 인용망 리스트 조회 | 선택 (미지정 시 3초당 1회 제한) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
+| **`SERPAPI_API_KEY`** | SerpAPI 기반 Google Scholar 키워드 문헌 탐색 | 선택 (미지정 시 구글 스콜라 쿼리 비활성화) | [SerpAPI](https://serpapi.com/) |
 | **`JINA_API_KEY`** | 웹 페이지나 PDF 원문 URL에서 마크다운 형태 본문 추출 | 선택 (미지정 시 Fallback 사용) | [Jina Reader API](https://jina.ai/reader/) |
 | **`MS_BRAIN_VAULT`** | Obsidian 로컬 볼트 연동 절대 경로 (예: `/Users/username/Desktop/MS_Brain.nosync`) | 선택 (볼트 자동 내보내기용) | 로컬 볼트 디렉토리 절대경로 입력 |
 

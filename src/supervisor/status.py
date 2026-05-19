@@ -42,6 +42,7 @@ def run_setup_wizard():
         ("OPENAI_API_KEY", "OpenAI API Key (ChatGPT 모델 분석 및 본문 가공 - 선택)", "https://platform.openai.com/"),
         ("GEMINI_API_KEY", "Google Gemini API Key (Gemini 다차원 분석 및 요약 - 선택)", "https://aistudio.google.com/"),
         ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
+        ("SERPAPI_API_KEY", "SerpAPI API Key (구글 스콜라 키워드 검색용 - 선택)", "https://serpapi.com/"),
         ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
         ("MS_BRAIN_VAULT", "Obsidian Vault 로컬 절대 경로 (예: /path/to/MS_Brain.nosync)", "로컬 볼트 연동용 절대 경로"),
         ("OMNI_LIGHTPANDA_BIN", "Lightpanda Headless Browser 실행 파일 경로 (생략 가능)", "로컬 바이너리 경로"),
@@ -135,6 +136,7 @@ def run_diagnostics():
     openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
     gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
     s2_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
+    serpapi_key = os.environ.get("SERPAPI_API_KEY", "").strip()
     jina_key = os.environ.get("JINA_API_KEY", "").strip()
     
     # External Tools
@@ -197,6 +199,12 @@ def run_diagnostics():
         "SEMANTIC_SCHOLAR_API_KEY",
         "[green]Configured[/green]" if s2_key else "[yellow]Not Configured (Rate Limited 3s/req)[/yellow]",
         "Semantic Scholar API 고속 조회용 (발급: www.semanticscholar.org/product/api)"
+    )
+    table.add_row(
+        "API Key",
+        "SERPAPI_API_KEY",
+        "[green]Configured[/green]" if serpapi_key else "[yellow]Not Configured (Google Scholar query disabled)[/yellow]",
+        "SerpAPI 구글 스콜라 키워드 검색용 (발급: serpapi.com)"
     )
     table.add_row(
         "API Key",

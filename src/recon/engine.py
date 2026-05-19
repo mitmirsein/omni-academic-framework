@@ -1,3 +1,4 @@
+import os
 import asyncio
 import urllib.parse
 import xml.etree.ElementTree as ET
@@ -406,6 +407,128 @@ class CitationGraphClient:
         return uniq
 
 
+class SerpApiScholarClient(BaseAPIClient):
+    """SerpAPI Google Scholar API 어댑터 (비동기).
+    이 플러그인은 Google Scholar의 차단을 우회하여 키워드 검색을 안정적으로 수행합니다.
+    SERPAPI_API_KEY 환경변수가 필요합니다.
+    """
+    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        api_key = os.environ.get("SERPAPI_API_KEY")
+        if not api_key:
+            console.print("[bold red]SerpAPI: SERPAPI_API_KEY 환경변수가 설정되지 않았습니다.[/bold red]")
+            return []
+
+        params = {
+            "engine": "google_scholar",
+            "q": query,
+            "num": max_results,
+            "api_key": api_key,
+        }
+        url = "https://serpapi.com/search"
+        papers = []
+
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                results = data.get("organic_results", [])
+                for rec in results:
+                    title = _norm(rec.get("title"))
+                    if not title:
+                        continue
+                    
+                    # 저자 파싱
+                    summary = rec.get("publication_info", {}).get("summary", "")
+                    authors = []
+                    venue = None
+                    if summary:
+                        parts = summary.split(" - ")
+                        if parts:
+                            authors = [a.strip() for a in parts[0].split(",")]
+                            if len(parts) > 1:
+                                venue = _norm(parts[1])
+                    
+                    # 인용수 파싱
+                    citation_count = 0
+                    cited_by = rec.get("inline_links", {}).get("cited_by", {})
+                    if isinstance(cited_by, dict):
+                        citation_count = cited_by.get("total", 0)
+
+                    papers.append(PaperMetadata(
+                        title=f"[Google Scholar] {title}",
+                        authors=authors or ["저자 미상"],
+                        abstract=_norm(rec.get("snippet"))[:200] or "초록 없음",
+                        url=rec.get("link"),
+                        citation_count=citation_count,
+                        venue=venue,
+                    ))
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]SerpAPI API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]SerpAPI 네트워크 요청 실패: {e}[/bold red]")
+        except (ValueError, KeyError) as e:
+            console.print(f"[bold red]SerpAPI 응답 파싱 실패: {e}[/bold red]")
+
+        return papers
+
+
+class SemanticScholarClient(BaseAPIClient):
+    """Semantic Scholar 공식 Web API 어댑터 (비동기).
+    SEMANTIC_SCHOLAR_API_KEY 환경변수가 설정되어 있으면 헤더에 주입하여
+    더 높은 Rate Limit으로 고속 조회가 가능합니다. 없어도 3초/1회 속도 한도로 동작합니다.
+    """
+    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        api_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
+        headers = {}
+        if api_key:
+            headers["x-api-key"] = api_key
+
+        params = {
+            "query": query,
+            "limit": max_results,
+            "fields": "title,authors,abstract,externalIds,url,citationCount,venue",
+        }
+        url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        papers = []
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(url, params=params, headers=headers)
+                response.raise_for_status()
+                data = response.json()
+                
+                for item in data.get("data", []) or []:
+                    title = _norm(item.get("title"))
+                    if not title:
+                        continue
+                    
+                    authors = [
+                        _norm(a.get("name")) for a in item.get("authors", [])
+                        if a.get("name")
+                    ]
+                    doi = (item.get("externalIds") or {}).get("DOI")
+                    
+                    papers.append(PaperMetadata(
+                        title=f"[Semantic Scholar] {title}",
+                        authors=authors or ["저자 미상"],
+                        abstract=_norm(item.get("abstract"))[:200] or "초록 없음",
+                        doi=doi,
+                        url=item.get("url"),
+                        citation_count=item.get("citationCount") or 0,
+                        venue=_norm(item.get("venue")) or None,
+                    ))
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]Semantic Scholar API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]Semantic Scholar 네트워크 요청 실패: {e}[/bold red]")
+        except (ValueError, KeyError) as e:
+            console.print(f"[bold red]Semantic Scholar 응답 파싱 실패: {e}[/bold red]")
+
+        return papers
+
+
 # 클라이언트 이름 → 구현. 도메인↔클라이언트 매핑은 코드가 아니라
 # lenses/*.yaml 의 recon_clients 가 결정한다(헌법 §2: 도메인 독립성).
 CLIENT_FACTORY = {
@@ -415,6 +538,8 @@ CLIENT_FACTORY = {
     "econbiz": EconBizClient,
     "pubmed": PubMedClient,
     "openalex": OpenAlexClient,
+    "serpapi_scholar": SerpApiScholarClient,
+    "semanticscholar": SemanticScholarClient,
 }
 
 

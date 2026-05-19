@@ -1,6 +1,8 @@
 name: "General Academic"
 recon_clients:
   - crossref
+  - semanticscholar
+  - serpapi_scholar
 focus_areas:
   - "Core Claim & Argument Structure"
   - "Method & Evidence"

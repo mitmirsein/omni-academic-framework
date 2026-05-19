@@ -3,6 +3,8 @@ recon_clients:
   - openalex
   - kci
   - crossref
+  - semanticscholar
+  - serpapi_scholar
 focus_areas:
   - "Dogmatic & Hermeneutic Consistency"
   - "Historical & Textual Context"
