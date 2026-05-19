@@ -9,6 +9,7 @@ from src.supervisor.router import (
     _list_lenses,
     _resolve_document,
     _resolve_run_dir,
+    _verify_run,
 )
 
 
@@ -85,3 +86,19 @@ def test_resolve_run_dir_accepts_run_id_and_slug_latest(tmp_path):
 def test_resolve_run_dir_missing_raises(tmp_path):
     with pytest.raises(ValueError):
         _resolve_run_dir("missing", str(tmp_path / "runs"))
+
+
+def test_verify_run_detects_artifact_tampering(tmp_path):
+    store = RunStore.create("fixture", "general", mock=True, base=str(tmp_path / "runs"))
+    router = OmniSupervisorRouter(use_mock=True)
+    router._run_ontology(store, "Alpha claim appears here.\n\nBeta method follows.")
+    run_dir = store.finalize()
+
+    ok, issues = _verify_run(store._meta["run_id"], str(tmp_path / "runs"))
+    assert ok
+    assert issues == []
+
+    (run_dir / "report.md").write_text("tampered", encoding="utf-8")
+    ok, issues = _verify_run(store._meta["run_id"], str(tmp_path / "runs"))
+    assert not ok
+    assert any("report.md" in issue for issue in issues)

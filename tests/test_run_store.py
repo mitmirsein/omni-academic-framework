@@ -45,6 +45,11 @@ def test_run_store_writes_artifacts_and_manifest(tmp_path):
     assert manifest["audit_passed"] is True
     assert manifest["query"] == "Inflation Targeting!"
     assert set(manifest["artifacts"]) >= {"digest.json", "ontology.json", "audit.json"}
+    artifact_manifest = manifest["artifact_manifest"]
+    assert artifact_manifest["digest.json"]["exists"] is True
+    assert artifact_manifest["digest.json"]["bytes"] > 0
+    assert len(artifact_manifest["digest.json"]["sha256"]) == 64
+    assert "manifest.json" not in artifact_manifest
 
     # SQLite 인덱스 등재 확인
     conn = sqlite3.connect(tmp_path / "index.db")

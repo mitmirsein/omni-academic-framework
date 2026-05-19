@@ -151,6 +151,16 @@ uv run omni --show-run exodus-3-19-20/MOCK-20260519T094523Z
 
 `--show-run`은 로컬 `runs/` 아래의 query slug, `latest` symlink, 전체 run id, 또는 run 디렉터리를 받아 `manifest.json`, `report.md`, artifact 목록을 빠르게 출력한다. 파일을 열지는 않고 경로와 요약만 보여준다.
 
+### Run 무결성 검증
+
+```bash
+uv run omni --verify-run exodus-3-19-20
+uv run omni --verify-run exodus-3-19-20/latest
+uv run omni --verify-run exodus-3-19-20/MOCK-20260519T094523Z
+```
+
+`--verify-run`은 `manifest.json`의 `artifact_manifest`를 기준으로 현재 artifact 파일의 존재 여부, byte size, sha256을 다시 계산한다. 누락 또는 변조가 감지되면 non-zero exit code로 실패한다. legacy run처럼 `artifact_manifest`가 없는 경우도 검증 실패로 처리된다.
+
 ### 대화형 설정
 
 ```bash
@@ -323,6 +333,7 @@ runs/
 | `status` | running/completed/cancelled/scraping_failed 등 실행 상태 |
 | `recon_cache` | client별 캐시 hit/age 정보 |
 | `artifacts` | 실제 생성된 파일 목록 |
+| `artifact_manifest` | artifact별 `exists`, `bytes`, `sha256` 무결성 정보 |
 
 ### `report.md`
 

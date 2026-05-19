@@ -14,7 +14,7 @@ except ImportError:
 from pydantic import BaseModel
 from rich.console import Console
 
-from src.store.run_store import RunStore, export_to_vault
+from src.store.run_store import RunStore, _file_integrity, export_to_vault
 
 console = Console()
 
@@ -140,6 +140,48 @@ def _show_run(run_ref: str, base: str = "runs") -> None:
     artifacts = manifest.get("artifacts") or []
     if artifacts:
         console.print("- Artifacts: " + ", ".join(f"`{a}`" for a in artifacts))
+    artifact_manifest = manifest.get("artifact_manifest") or {}
+    if artifact_manifest:
+        ok = sum(1 for item in artifact_manifest.values() if item.get("exists"))
+        total_bytes = sum(int(item.get("bytes") or 0) for item in artifact_manifest.values())
+        console.print(
+            f"- Artifact Integrity: `{ok}/{len(artifact_manifest)} present`, "
+            f"`{total_bytes}` bytes"
+        )
+
+
+def _verify_run(run_ref: str, base: str = "runs") -> tuple[bool, list[str]]:
+    run_dir = _resolve_run_dir(run_ref, base)
+    manifest_path = run_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    artifact_manifest = manifest.get("artifact_manifest") or {}
+    if not artifact_manifest:
+        return False, ["manifest에 artifact_manifest가 없습니다."]
+
+    issues: list[str] = []
+    for name, expected in artifact_manifest.items():
+        current = _file_integrity(run_dir / name)
+        if bool(current.get("exists")) != bool(expected.get("exists")):
+            issues.append(f"{name}: exists mismatch expected={expected.get('exists')} actual={current.get('exists')}")
+            continue
+        if not current.get("exists"):
+            continue
+        if int(current.get("bytes") or 0) != int(expected.get("bytes") or 0):
+            issues.append(f"{name}: byte size mismatch expected={expected.get('bytes')} actual={current.get('bytes')}")
+        if current.get("sha256") != expected.get("sha256"):
+            issues.append(f"{name}: sha256 mismatch")
+    return not issues, issues
+
+
+def _print_verify_run(run_ref: str, base: str = "runs") -> bool:
+    ok, issues = _verify_run(run_ref, base)
+    if ok:
+        console.print(f"[bold green]✅ Run artifact integrity OK:[/bold green] {run_ref}")
+    else:
+        console.print(f"[bold red]❌ Run artifact integrity FAILED:[/bold red] {run_ref}")
+        for issue in issues:
+            console.print(f"- {issue}")
+    return ok
 
 
 class OmniSupervisorRouter:
@@ -365,6 +407,10 @@ def main():
         "--show-run", type=str, default="",
         help="run id, query slug, 또는 run 디렉터리를 받아 manifest/report 위치를 출력",
     )
+    parser.add_argument(
+        "--verify-run", type=str, default="",
+        help="run id, query slug, 또는 run 디렉터리의 artifact_manifest 무결성을 검증",
+    )
     args = parser.parse_args()
 
     if args.setup:
@@ -382,6 +428,14 @@ def main():
         except ValueError as e:
             console.print(f"[bold red]{e}[/bold red]")
         return
+
+    if args.verify_run:
+        try:
+            ok = _print_verify_run(args.verify_run)
+        except ValueError as e:
+            console.print(f"[bold red]{e}[/bold red]")
+            ok = False
+        raise SystemExit(0 if ok else 1)
 
     if args.status or not args.query:
         from src.supervisor.status import run_diagnostics
