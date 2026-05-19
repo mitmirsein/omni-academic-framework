@@ -4,11 +4,113 @@ from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich.columns import Columns
-from rich.text import Text
 from src.config.tools import resolve_tool
 
 console = Console()
+
+def run_setup_wizard():
+    """대화형으로 API 키 및 로컬 경로 정보를 수집하여 .env에 저장하는 마법사."""
+    console.print("\n[bold cyan]✨ Omni-Academic Framework - Interactive Setup Wizard[/bold cyan]")
+    console.print("[dim]터미널 안내에 따라 설정을 입력하세요. 빈칸으로 엔터를 누르면 기존 설정이 유지되거나 생략됩니다.[/dim]\n")
+
+    env_path = Path(".env")
+    example_path = Path(".env.example")
+    
+    # .env 파일이 없으면 .env.example을 복사해 둠
+    if not env_path.exists() and example_path.exists():
+        try:
+            shutil.copy(example_path, env_path)
+        except Exception:
+            pass
+
+    # 기존 env 설정 읽어오기
+    existing_vars = {}
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    try:
+                        k, v = line.split("=", 1)
+                        existing_vars[k.strip()] = v.strip()
+                    except ValueError:
+                        pass
+
+    # 순차적 질문 목록 정의
+    questions = [
+        ("ANTHROPIC_API_KEY", "Anthropic API Key (Claude 모델 분석용 필수)", "https://console.anthropic.com/"),
+        ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
+        ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
+        ("MS_BRAIN_VAULT", "Obsidian Vault 로컬 절대 경로 (예: /path/to/MS_Brain.nosync)", "로컬 볼트 연동용 절대 경로"),
+        ("OMNI_LIGHTPANDA_BIN", "Lightpanda Headless Browser 실행 파일 경로 (생략 가능)", "로컬 바이너리 경로"),
+        ("OMNI_PDF_EXTRACTOR", "PDF 텍스트 추출기 pdftotext 경로 (생략 가능)", "로컬 바이너리 경로")
+    ]
+
+    new_vars = {}
+    for var_name, description, link in questions:
+        current_val = existing_vars.get(var_name, "")
+        masked_val = current_val
+        if current_val and "key" in var_name.lower():
+            # 보안 마스킹
+            masked_val = current_val[:8] + "..." if len(current_val) > 8 else "..."
+        
+        prompt = f"[bold green]? {description}[/bold green]"
+        if masked_val:
+            prompt += f" [dim](현재값: {masked_val})[/dim]"
+        if "http" in link:
+            prompt += f"\n  [dim]↳ 발급 링크: {link}[/dim]"
+        prompt += "\n  > "
+        
+        console.print(prompt, end="")
+        try:
+            user_input = input().strip()
+        except (KeyboardInterrupt, EOFError):
+            console.print("\n[red]❌ 설정이 중단되었습니다.[/red]\n")
+            return
+            
+        if user_input:
+            new_vars[var_name] = user_input
+        else:
+            new_vars[var_name] = current_val
+
+    # .env 파일 저장
+    # 기존 파일의 주석 구조를 최대한 보존하면서 키값만 교체하거나 뒤에 붙여넣기
+    lines = []
+    updated_keys = set()
+    
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#") and "=" in stripped:
+                    try:
+                        k, v = stripped.split("=", 1)
+                        k = k.strip()
+                        if k in new_vars:
+                            lines.append(f"{k}={new_vars[k]}\n")
+                            updated_keys.add(k)
+                            continue
+                    except ValueError:
+                        pass
+                lines.append(line)
+    
+    # 기존에 없던 키들을 새로 추가
+    for k, v in new_vars.items():
+        if k not in updated_keys and v:
+            lines.append(f"{k}={v}\n")
+            
+    with open(env_path, "w", encoding="utf-8") as f:
+        f.writelines(lines)
+
+    console.print("\n[bold green]✅ .env 설정 파일 저장 완료![/bold green]")
+    console.print("[dim]변경된 환경 설정을 바탕으로 시스템 진단을 다시 가동합니다...[/dim]")
+    
+    # 환경변수 즉시 로드 적용 (현 프로세스 반영)
+    for k, v in new_vars.items():
+        if v:
+            os.environ[k] = v
+
+    run_diagnostics()
 
 def run_diagnostics():
     """로컬 셋업 진단 및 환경 세팅 상태 화면 시각화."""
@@ -28,6 +130,7 @@ def run_diagnostics():
     # 2. 상태 수집
     # API Keys
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    s2_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
     jina_key = os.environ.get("JINA_API_KEY", "").strip()
     
     # External Tools
@@ -71,13 +174,19 @@ def run_diagnostics():
         "API Key",
         "ANTHROPIC_API_KEY",
         "[green]Configured (Active)[/green]" if anthropic_key else "[red]Missing (API calls disabled)[/red]",
-        "Claude 모델을 이용한 온톨로지 추출에 필히 권장됨"
+        "Claude 모델을 이용한 온톨로지 추출용 (발급: console.anthropic.com)"
+    )
+    table.add_row(
+        "API Key",
+        "SEMANTIC_SCHOLAR_API_KEY",
+        "[green]Configured[/green]" if s2_key else "[yellow]Not Configured (Rate Limited 3s/req)[/yellow]",
+        "Semantic Scholar API 고속 조회용 (발급: www.semanticscholar.org/product/api)"
     )
     table.add_row(
         "API Key",
         "JINA_API_KEY",
         "[green]Configured (Optional)[/green]" if jina_key else "[yellow]Not Configured (Fallback used)[/yellow]",
-        "Jina Reader를 통한 논문 마크다운 본문 파싱 전용"
+        "Jina Reader 본문 파싱용 (발급: jina.ai/reader)"
     )
 
     # External Binaries
@@ -117,6 +226,8 @@ def run_diagnostics():
     if env_created:
         guide_text.append("[bold yellow]🎉 초심자를 위해 .env.example을 복사하여 .env 파일을 자동 생성했습니다![/bold yellow]\n각자의 API Key와 경로를 새로 생성된 [underline].env[/underline] 파일에 설정하십시오.\n")
     
+    guide_text.append("[bold cyan]💡 간편한 대화형 환경 설정 방법:[/bold cyan]\n터미널에 [bold]uv run omni --setup[/bold] 명령어를 구동하여 API 키를 손쉽게 저장할 수 있습니다.\n")
+
     if not anthropic_key:
         guide_text.append("[bold red]⚠️ Anthropic API Key가 비어 있습니다.[/bold red]\n- 온톨로지를 실제로 추출하려면 [underline].env[/underline] 파일에 [bold]ANTHROPIC_API_KEY=sk-...[/bold]를 설정하거나,\n- 가짜 목업 환경을 시험하려면 명령어 끝에 [bold]--mock[/bold] 인자를 추가해 실행하십시오.")
     else:

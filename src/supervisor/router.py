@@ -246,7 +246,16 @@ def main():
         "--status", action="store_true",
         help="현재 시스템 설정 및 API Key 등 로컬 진단/셋업 화면을 출력",
     )
+    parser.add_argument(
+        "--setup", action="store_true",
+        help="대화형 CLI 마법사를 통해 API Key 및 로컬 환경변수(.env) 설정",
+    )
     args = parser.parse_args()
+
+    if args.setup:
+        from src.supervisor.status import run_setup_wizard
+        run_setup_wizard()
+        return
 
     if args.status or not args.query:
         from src.supervisor.status import run_diagnostics

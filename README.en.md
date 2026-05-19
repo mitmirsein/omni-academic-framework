@@ -17,7 +17,7 @@ status: Draft/V3-Palantir
 > **Status: Prototype (v0.6.0).** This document outlines the target architecture (vision). Parts of it remain a blueprint.
 > - **Implemented**: Recon (arXiv client, Crossref/EconBiz/PubMed/OpenAlex live APIs; KCI adapter scaffold; EconBiz=Econ, PubMed=Medical, OpenAlex=Theology/Humanities lenses), config-driven lens registry, Paragraph-ID assignment, AuditGate paragraph grounding, Gate 2 ForensicAuditor (DOI validation + live ping, URL liveness), AnthropicProvider (tool-use + prompt caching), LightpandaScraper (subprocess browser; `OMNI_LIGHTPANDA_BIN` or PATH), unified tool resolver, E2E HITL-Scraper-Ontology-Audit pipeline, RunStore persistence (`runs/<id>/` typed JSON + self-attesting manifest + SQLite index; optional `--export-vault` export to Obsidian Inbox/Drafts), PdfExtractorScraper (pypdf/pdftotext), ReconCache (.cache/recon.sqlite with 24h TTL), Snowball (OpenAlex citation network recon). **System Diagnostics & Auto-Setup Dashboard (auto-generates `.env` and checks key/binary liveness)**.
 > - **`[BLUEPRINT]` (Unimplemented)**: Gate 3 Schema/Lens self-redteaming (LLM-based), stealth browser-dependent runners in `skills/`.
-> - **Prerequisites**: For instant execution post-cloning, run `uv run omni` to automatically bootstrap `.env` and visualize environment diagnostics. Live extraction requires API Keys and tools configured. `skills/*` runners require optional extras (e.g., `uv run --extra semantic-scholar ...`).
+> - **Prerequisites**: Post-cloning, run **`uv run omni --setup`** in your terminal to launch the interactive setup wizard, which helps you bootstrap and configure API Keys and local paths in your `.env` file easily. Live extraction requires configured API Keys. `skills/*` runners require optional extras.
 
 ## 1. Philosophy & Core Values
 
@@ -67,6 +67,16 @@ All outputs must pass through three gates before returning (Fail-Fast & Retry):
   - Defining CS, Medical, and Theological schemas in the `lenses/` registry.
 - [ ] **Step 4: Integrated End-to-End Stress Test**
   - Testing the complete flow: Extraction ➔ Domain Analysis ➔ 3-Layered Audit.
+
+## 5. API Environment Configuration Guide
+This framework relies on several external APIs to parse, enrich, and audit academic literature. You can easily configure them in your terminal via the interactive wizard by running **`uv run omni --setup`**.
+
+| Env Variable Name | Purpose / Usage | Recommended Status | Acquisition & References |
+| :--- | :--- | :--- | :--- |
+| **`ANTHROPIC_API_KEY`** | Claude models for ontology parsing and lens analysis | **Required (for Live run)** | [Anthropic Console](https://console.anthropic.com/) |
+| **`SEMANTIC_SCHOLAR_API_KEY`** | High-performance academic search & citation graph retrieval | Optional (falls back to 3s/req rate-limiting) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
+| **`JINA_API_KEY`** | Extracting high-fidelity Markdown from raw web pages or PDF URLs | Optional (falls back to public reader mode) | [Jina Reader API](https://jina.ai/reader/) |
+| **`MS_BRAIN_VAULT`** | Absolute path to local Obsidian vault (e.g. `/Users/username/Desktop/MS_Brain.nosync`) | Optional (for automatic Obsidian export) | Your local vault root path |
 
 ---
 *Omni-Academic Framework | MS_Dev Third Gen Standard*

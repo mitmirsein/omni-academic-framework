@@ -17,7 +17,7 @@ status: Draft/V3-Palantir
 > **Status: Prototype (v0.6.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
 > - **구현됨**: Recon(arXiv는 `arxiv` 라이브러리, Crossref/EconBiz/PubMed/OpenAlex 실 API; KCI는 adapter scaffold — XML 경로 미검증; EconBiz=경제학, PubMed=의학, OpenAlex=신학·인문학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(lightpanda 바이너리 subprocess — 경로는 `OMNI_LIGHTPANDA_BIN` env 또는 PATH; 하드코딩 제거; 미설정 시 정직하게 빈 문자열), 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""), HITL→Scraper→Ontology→Audit E2E, RunStore 산출물 영속화(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance] + SQLite 인덱스; `--export-vault`로 audit통과·non-mock만 볼트 Inbox/Drafts 옵트인 export), PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` 외부툴 override·실패 시 정직), ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest에 적중 기록), Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드), **시스템 진단 & 자동 셋업 대시보드(쿼리 생략 또는 `--status` 구동 시 `.env` 자동 복사 생성 및 API 키/도구 유효성 검사 UI 출력)**.
 > - **`[BLUEPRINT]` (미구현)**: Gate 3 Schema/Lens self-redteaming(LLM 의존), `skills/`의 stealth browser 의존 러너(외부 모듈 미포함). 외부 툴(Lightpanda/PDF 추출기)은 `OMNI_LIGHTPANDA_BIN`·`OMNI_PDF_EXTRACTOR` env로 주입(미설정 시 해당 경로만 비활성, 정직 실패).
-> - **선행 조건**: clone 후 즉시 실행 시 `uv run omni`을 가동하면 시스템이 자동으로 `.env` 파일을 복사/생성하며 실행 환경을 시각화 진단해 줍니다. 실 추출은 API Key 및 도구 설정 필요. `skills/*` 러너는 `uv run --extra semantic-scholar ...` / `uv run --extra scholar-browser ...` 방식으로 optional extra를 켜야 하며, Google Scholar 브라우저 수집은 별도 stealth browser 모듈이 필요하다(현재 repo 미포함).
+> - **선행 조건**: clone 후 즉시 실행 시 **`uv run omni --setup`**을 가동하면 대화형 마법사가 실행되어 필수 API 키 및 설정을 `.env` 파일에 손쉽게 기록해 줍니다. 실 추출은 API Key 및 도구 설정 필요. `skills/*` 러너는 `uv run --extra semantic-scholar ...` 방식으로 optional extra를 켜야 합니다.
 
 ## 1. 프로젝트 철학과 핵심 가치 (Core Value)
 본 프레임워크는 논문을 선형적으로 '읽는' 도구가 아니라, 다차원 정보망으로 '해체하고 장악하는' 팔란티어(Palantir)식 정보전 엔진을 지향합니다.
@@ -62,6 +62,16 @@ status: Draft/V3-Palantir
   - `lenses/` 디렉토리에 CS, MED, THEO 등 도메인별 렌즈(스키마) 파일 구축.
 - [ ] **Step 4: 통합 스트레스 테스트 (엔드투엔드)**
   - 지식망 추출 ➔ 정밀 분석 ➔ 3중 Audit 관문 통과의 전체 데이터 흐름 검증.
+
+## 5. API 환경 설정 가이드
+본 프레임워크는 학술 데이터를 가공하고 검증하기 위해 다음과 같은 API 키 설정을 지원합니다. 터미널에서 **`uv run omni --setup`** 명령을 입력하여 대화형으로 한 번에 손쉽게 설정할 수 있습니다.
+
+| 환경변수명 | 역할 / 용도 | 권장 설정 여부 | 발급 및 참고처 |
+| :--- | :--- | :--- | :--- |
+| **`ANTHROPIC_API_KEY`** | Claude 모델을 이용한 핵심 온톨로지 추출 및 본문 분석 | **필수 (Live 가동 시)** | [Anthropic Console](https://console.anthropic.com/) |
+| **`SEMANTIC_SCHOLAR_API_KEY`** | Semantic Scholar 기반 고속 학술 문헌 탐색 및 인용망 리스트 조회 | 선택 (미지정 시 3초당 1회 제한) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
+| **`JINA_API_KEY`** | 웹 페이지나 PDF 원문 URL에서 마크다운 형태 본문 추출 | 선택 (미지정 시 Fallback 사용) | [Jina Reader API](https://jina.ai/reader/) |
+| **`MS_BRAIN_VAULT`** | Obsidian 로컬 볼트 연동 절대 경로 (예: `/Users/username/Desktop/MS_Brain.nosync`) | 선택 (볼트 자동 내보내기용) | 로컬 볼트 디렉토리 절대경로 입력 |
 
 ---
 *Omni-Academic Framework | MS_Dev Third Gen Standard*
