@@ -54,14 +54,16 @@ status: Draft/V3-Palantir
 
 ## 4. 실행 마일스톤 (Milestones)
 
-- [ ] **Step 1: Supervisor & Ontology 코어 구축**
+- [x] **Step 1: Supervisor & Ontology 코어 구축**
   - 메인 진입점 프롬프트 설계 및 `Ontology Extractor` 선행 가동 구조 확립.
-- [ ] **Step 2: Sub-Nodes의 도구화 (Tooling)**
-  - 기존 번역/분석기 해체 후, 오케스트레이터가 호출 가능한 Tool 규격으로 재조립.
-- [ ] **Step 3: Domain Lenses 세팅**
+- [x] **Step 2: Sub-Nodes의 도구화 (Tooling) 및 다중 클라이언트 연동**
+  - 기존 번역/분석기 해체 후 호출 가능한 Tool 규격으로 재조립 및 Google Scholar, Semantic Scholar 등 다중 클라이언트 연동 완료.
+- [x] **Step 3: Domain Lenses 세팅**
   - `lenses/` 디렉토리에 CS, MED, THEO 등 도메인별 렌즈(스키마) 파일 구축.
-- [ ] **Step 4: 통합 스트레스 테스트 (엔드투엔드)**
+- [x] **Step 4: 통합 스트레스 테스트 (엔드투엔드)**
   - 지식망 추출 ➔ 정밀 분석 ➔ 3중 Audit 관문 통과의 전체 데이터 흐름 검증.
+- [ ] **Step 5: Gate 3 Schema Compliance Audit (자가-레드팀) 구현 `[BLUEPRINT]`**
+  - 추출 및 분석된 온톨로지 결과물이 렌즈에 규정된 지침을 충족하는지 LLM을 활용해 자동 비판 및 검증하는 최종 관문 구축.
 
 ## 5. API 환경 설정 가이드
 본 프레임워크는 학술 데이터를 가공하고 검증하기 위해 다음과 같은 API 키 설정을 지원합니다. 터미널에서 **`uv run omni --setup`** 명령을 입력하여 대화형으로 한 번에 손쉽게 설정할 수 있습니다.

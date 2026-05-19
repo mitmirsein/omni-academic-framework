@@ -59,14 +59,16 @@ All outputs must pass through three gates before returning (Fail-Fast & Retry):
 
 ## 4. Milestones
 
-- [ ] **Step 1: Supervisor & Ontology Core**
+- [x] **Step 1: Supervisor & Ontology Core**
   - Prompt engineering for the entrypoint and establishing the `Ontology Extractor` flow.
-- [ ] **Step 2: Sub-Nodes Tooling**
-  - Deconstructing analyzers/translators into callable tool schemas.
-- [ ] **Step 3: Domain Lenses Setup**
+- [x] **Step 2: Sub-Nodes Tooling & Multi-Client Integration**
+  - Deconstructing analyzers/translators into callable tool schemas and integrating Google Scholar/Semantic Scholar clients.
+- [x] **Step 3: Domain Lenses Setup**
   - Defining CS, Medical, and Theological schemas in the `lenses/` registry.
-- [ ] **Step 4: Integrated End-to-End Stress Test**
+- [x] **Step 4: Integrated End-to-End Stress Test**
   - Testing the complete flow: Extraction ➔ Domain Analysis ➔ 3-Layered Audit.
+- [ ] **Step 5: Gate 3 Schema Compliance Audit (Self-Redteaming) `[BLUEPRINT]`**
+  - Implementing an automated LLM-based verification layer to critique and validate that extracted ontology complies with lens instructions.
 
 ## 5. API Environment Configuration Guide
 This framework relies on several external APIs to parse, enrich, and audit academic literature. You can easily configure them in your terminal via the interactive wizard by running **`uv run omni --setup`**.
