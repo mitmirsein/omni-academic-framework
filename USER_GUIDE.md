@@ -208,6 +208,15 @@ uv run omni "ignored query label" --snowball "10.1234/example.doi"
 
 키워드 검색 대신 OpenAlex 기반 인용 네트워크 정찰을 수행한다. `query` 인자는 run 이름/메타데이터 용도로 남는다.
 
+### KCI OAI-PMH 수확 모드
+
+```bash
+uv run omni "ignored query label" --module recon --kci-harvest ARTI
+# set 선택: ARTI(일반 논문) | ARTI_CONF(학술대회) | JOUR(학술지)
+```
+
+무키 표준 OAI-PMH(`open.kci.go.kr/oai/request`, `oai_dc`)로 KCI 메타데이터를 set 단위로 수확한다. OAI-PMH는 키워드 검색이 아니라 수확 프로토콜이라 `query` 인자는 run 메타데이터 용도로만 남는다. `resumptionToken` 페이지네이션을 따르며(상한 `MAX_PAGES=50`), 동시에 `--snowball`을 줘도 `--kci-harvest`가 우선한다. 상세 동작은 §6 참조.
+
 ### 온톨로지 단독 실행
 
 ```bash
@@ -682,7 +691,11 @@ uv run python -m pytest tests/test_run_store.py
 - Gate 3의 기본 감사는 deterministic Lens Compliance MVP다.
 - `--llm-critic`은 critic 결과를 저장하고 감사하지만, critic 결과를 바탕으로 자동 재작성하는 수정 루프는 아직 없다.
 - Google Scholar HTML 파싱은 외부 사이트 구조 변화에 취약하다.
-- KCI: Open API 키는 일반 사용자에게 비공개(기관/제한)다. `KCI_API_KEY`가 있으면 Open API(실 `<MetaData>` 구조 검증, 키 누락 시 `resultMsg` 에러봉투 정직 처리)를, 없으면 KCI 웹검색이 JS 렌더라 **Lightpanda headless로 우회**한다(`OMNI_LIGHTPANDA_BIN` 필요). 웹 파서 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 lightpanda 렌더 DOM을 캡처해 검증했고 `test_kci.py`가 실 fragment 스냅샷으로 고정한다. 목록뷰엔 초록이 없어 정직하게 미제공 표기한다. Lightpanda도 없으면 빈 결과 → 신학·인문학 렌즈는 OpenAlex+Crossref로 graceful degrade(렌즈 안 깨짐). **무키 표준 OAI-PMH 수확(권장·구현됨)**: `uv run omni <q> --module recon --kci-harvest ARTI`(또는 `ARTI_CONF`/`JOUR`). base `https://open.kci.go.kr/oai/request`는 실검증(2026-05) 무인증·`oai_dc` 표준. OAI-PMH는 키워드 검색이 아니라 set 단위 *수확* 프로토콜이라 `BaseAPIClient(search)`를 상속하지 않는 별도 모드(Snowball과 동일 원칙)다. 파서는 OAI-PMH 2.0+Dublin Core 표준 경로만 쓰고(네임스페이스 무력화), 검증된 식별자 체계 `oai:kci.go.kr:ARTI/{artiId}`로 landing URL을 구성하며, 표준 fixture 스냅샷으로 고정한다. deleted 레코드·OAI error 봉투는 정직하게 처리. `resumptionToken`을 따라 다음 페이지를 수확하되(규격대로 후속 요청은 `verb`+`resumptionToken`만 전송), `MAX_PAGES=50` 상한·토큰 반복 차단으로 runaway를 막고 네트워크 실패 시 그때까지 수확분을 부분 반환한다.
+- KCI는 키 가용성에 따라 3경로로 동작하며(Open API 키는 일반 사용자에게 비공개·기관/제한), 전부 부재 시 신학·인문학 렌즈는 OpenAlex+Crossref로 graceful degrade(렌즈 안 깨짐):
+  - **OAI-PMH 수확(권장·무키 표준)**: `uv run omni <q> --module recon --kci-harvest ARTI`(또는 `ARTI_CONF`/`JOUR`). base `https://open.kci.go.kr/oai/request`는 실검증(2026-05) 무인증·`oai_dc` 표준. OAI-PMH는 키워드 검색이 아니라 set 단위 *수확* 프로토콜이라 `BaseAPIClient(search)`를 상속하지 않는 별도 모드(Snowball과 동일 원칙).
+  - **파서**: OAI-PMH 2.0+Dublin Core 표준 경로만 사용(네임스페이스 무력화), 검증된 식별자 체계 `oai:kci.go.kr:ARTI/{artiId}`로 landing URL 구성, 표준 fixture 스냅샷 고정. deleted 레코드·OAI error 봉투 정직 처리. `resumptionToken` 추종(후속 요청은 `verb`+`resumptionToken`만), `MAX_PAGES=50` 상한·토큰 반복 차단·네트워크 실패 시 부분 반환.
+  - **Open API(키 보유 시)**: `KCI_API_KEY` 설정 시 실 `<MetaData>` 구조 검증, 키 누락 시 `resultMsg` 에러봉투 정직 처리.
+  - **Lightpanda 키워드 우회**: 키 없으면 JS 렌더 웹검색을 headless로 우회(`OMNI_LIGHTPANDA_BIN` 필요). 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 렌더 DOM 캡처로 검증, `test_kci.py` 실 fragment 스냅샷 고정. 목록뷰 무초록은 정직하게 미제공 표기. Lightpanda도 없으면 빈 결과.
 - Audit score 80 미만 자체는 export 차단 조건이 아니다. 차단은 `audit_passed=false` 또는 forensic 실패 기준이다.
 - `runs/`와 `.cache/`는 로컬 산출물이며 GitHub에 올리지 않는다.
 
