@@ -247,7 +247,7 @@ Glossary는 반드시 **2-tier 구조**로 작성한다.
     Auferstehung als Tatsache_Spiess.md
 ```
 
-**최종 안치 경로**: `MS_Brain.nosync / 000 System / Inbox / Raw /`
+**최종 안치 경로**: `[Academic Vault Root] / 000 System / Inbox / Raw /`
 ```bash
 mv "[최종파일명].md" "$VAULT_ROOT/000 System/Inbox/Raw/"
 ```

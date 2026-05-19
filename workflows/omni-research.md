@@ -11,7 +11,7 @@ description: "범용 학술 연구 및 논문 서베이 에이전트 가동 (omn
     - **Google Scholar Semantic**: `skills/google-scholar-semantic/scripts/scholar_runner.py`를 통한 **Google Scholar Labs (AI-assisted) 시맨틱 정찰**.
     - **Semantic Scholar**: `skills/semantic-scholar/scripts/s2_runner.py`를 통한 **API 기반 정밀 메타데이터** 확보.
 3. **[FORENSIC GATE]**: **의무 사항**. 모든 소스의 도메인(연구주제) 관련성을 감사하고 DOI/URL 실존 여부를 검증한다. 할루시네이션 및 주제 불일치 항목(노이즈)을 원천 차단한다.
-4. **[PAF & APORETICS]**: Cathedral Engine of 1차 텍스트 분석 및 `MS_Brain.nosync` 지역 규칙(TRE 용어 등)을 적용한다.
+4. **[PAF & APORETICS]**: 1차 텍스트 구조 분석 및 학술 지식 베이스(Vault)의 지역 규칙(특수 전문 용어 사전 등)을 적용한다.
 5. **[OUTPUT: MOSAIC SCHEMA]**:
     - 본문은 학술적 인사이트와 논증적 TDD 중심으로 서술한다.
     - **Appendix: Research Inventory**: 모든 검증된 레퍼런스를 노트 최하단에 배치한다. (프론트매터 수록 금지)

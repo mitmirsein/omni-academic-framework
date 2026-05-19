@@ -42,5 +42,4 @@ uv run --extra semantic-scholar python skills/semantic-scholar/scripts/s2_runner
 ## ⚙️ 아키텍처 및 설정 (Architecture)
 
 1. **Authentication**: `.env`의 `SEMANTIC_SCHOLAR_API_KEY`를 사용합니다. 경로 규약은 `OMNI_ENV_FILE` 환경변수 > repo 루트 `.env` > 기본 탐색(머신-로컬 절대경로 하드코딩 없음). 키가 없어도 동작하지만 심각한 Rate Limit(3초당 1회)가 걸립니다.
-2. **Output Format**: 생성되는 Markdown 리포트는 서지 정보(Authors, Year, Venue, Citations, Links, Abstract)를 포함하여 MS_Brain.nosync 지식망에 즉시 편입할 수 있도록 규격화되어 있습니다.
-3. **Legacy Fallback**: 과거 ChromaDB와 연동된 다중 검색 엔진 모듈은 `scripts/triple_researcher.py`에 보존되어 있습니다.
+2. **Output Format**: 생성되는 Markdown 리포트는 서지 정보(Authors, Year, Venue, Citations, Links, Abstract)를 포함하여 로컬 지식망에 즉시 편입할 수 있도록 규격화되어 있습니다.

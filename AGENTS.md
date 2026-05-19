@@ -22,4 +22,4 @@ Last updated: 2026-05-19
 - 정보 수집(Search) 및 메타데이터 파싱 구조는 `KCI/RISS`, `Google Scholar`, `Semantic Scholar`뿐만 아니라 `arXiv`, `PubMed` 등 다양한 분야별 엔진을 쉽게 탈부착(Plug-and-play)할 수 있도록 모듈화해야 한다. 엔진 간의 결합은 최소화한다.
 
 ---
-*Omni-Academic Framework는 MS_Brain 글로벌 헌법의 상속을 받되, 범용성을 우선하는 개발 룰을 적용받는다.*
+*Omni-Academic Framework는 상위 글로벌 헌법의 상속을 받되, 범용성을 우선하는 개발 룰을 적용받는다.*

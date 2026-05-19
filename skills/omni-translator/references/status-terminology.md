@@ -4,8 +4,8 @@
 
 ## 📖 Terminology Bible (Standard: Korean Protestant)
 - **대한성서공회(개역개정)** 및 **한국 개신교 신학 용어** 사용을 절대 원칙으로 합니다. (가톨릭/성공회/북한어 용어 혼용 금지)
-- **Primary Glossary**: `$DEV_ROOT/projects/msn_th_db/config/glossary.json`이 최우선 기준입니다.
-- **TRE Governance**: `$DEV_ROOT/data/tre_terms.csv` — 모든 용어의 표준성 검증 레퍼런스.
+- **Primary Glossary**: `$DEV_ROOT/config/glossary.json` 또는 지정된 프로젝트별 용어집이 최우선 기준입니다.
+- **TRE Governance**: `$DEV_ROOT/data/theological_terms.csv` — 용어의 표준성 검증을 위한 내부 학술 명명 규칙 레퍼런스.
 - **Footnotes**: 각주는 반드시 `[1]`, `[2]`와 같은 숫자를 대괄호로 감싼 형태를 유지해야 합니다.
 
 ## 🔄 Internal Process Codes (에이전트 내부 추적용)
