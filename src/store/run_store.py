@@ -59,10 +59,21 @@ class RunStore:
                base: str = "runs") -> "RunStore":
         ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         prefix = "MOCK-" if mock else ""
-        run_id = f"{prefix}{ts}-{_slug(query)}"
+        query_slug = _slug(query)
+        run_id = f"{query_slug}/{prefix}{ts}"
         base_path = Path(base)
-        run_dir = base_path / run_id
+        run_dir = base_path / query_slug / f"{prefix}{ts}"
         run_dir.mkdir(parents=True, exist_ok=True)
+
+        # 최신 실행 디렉터리를 가리키는 "latest" 심볼릭 링크 생성
+        latest_link = base_path / query_slug / "latest"
+        try:
+            if latest_link.is_symlink() or latest_link.exists():
+                latest_link.unlink()
+            latest_link.symlink_to(Path(f"{prefix}{ts}"))
+        except Exception:
+            pass
+
         meta = {
             "run_id": run_id,
             "created_at": datetime.now(timezone.utc).isoformat(),
