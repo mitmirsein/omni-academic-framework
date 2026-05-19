@@ -1,7 +1,7 @@
 ---
 name: semantic-scholar
 description: "Semantic Scholar API 기반의 학술 논문 및 인용 네트워크 탐색 에이전트. (API Key 필수)"
-author: "MS_Dev"
+author: "Omni-Academic Framework"
 version: "2.0.0"
 triggers:
   - "#semanticscholar"

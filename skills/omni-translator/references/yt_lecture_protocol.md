@@ -247,7 +247,7 @@ Glossary는 반드시 **2-tier 구조**로 작성한다.
     Auferstehung als Tatsache_Spiess.md
 ```
 
-**최종 안치 경로**: `[Academic Vault Root] / 000 System / Inbox / Raw /`
+**최종 안치 경로**: `[Knowledge Store Root] / 000 System / Inbox / Raw /`
 ```bash
 mv "[최종파일명].md" "$VAULT_ROOT/000 System/Inbox/Raw/"
 ```
@@ -267,4 +267,4 @@ rm [작업경로]/*_KR.md               # 번역 초안 (Final에 통합됨)
 
 ---
 
-*yt_lecture_protocol.md v2.2 — Dual-Pass Audit (Full Translation Guard) | ARC SOP | MS_Dev | 2026-04-19*
+*yt_lecture_protocol.md v2.2 — Dual-Pass Audit (Full Translation Guard) | ARC SOP | Portable Skill Standard | 2026-04-19*

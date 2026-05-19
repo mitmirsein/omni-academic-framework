@@ -2,7 +2,7 @@
 name: omni-translator
 description: Translates academic documents using a Fidelity Harness that structurally prevents summarization. Features Phase 0 Pre-Forensics (Style Guide) and 3-stage Agent Role Isolation (Drafter, Red-Team Auditor, Stylist) for zero-loss integrity.
 version: 6.0.0 (Agent Role Isolation & Style Guide Enforcement)
-author: MS_Dev
+author: Omni-Academic Framework
 triggers:
   - "이 문서 번역해줘"
   - "번역 초안 만들어줘"
@@ -179,4 +179,4 @@ uv run python agents/translator_audit.py --source <원문> --target <최종번�
 - [author-mode-roles.md](./references/author-mode-roles.md): Author Mode 에이전트 확장 역할.
 
 ---
-*Omni Translator v6.0 — Agent Role Isolation Edition | MS_Dev Third Gen Standard*
+*Omni Translator v6.0 — Agent Role Isolation Edition | Portable Skill Standard*

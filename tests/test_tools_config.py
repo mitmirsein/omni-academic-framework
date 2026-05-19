@@ -30,4 +30,4 @@ def test_no_hardcoded_machine_local_path():
     ]
     for path in paths:
         src = open(path, encoding="utf-8").read()
-        assert "/Users/msn/" not in src
+        assert "/" + "Users/" not in src

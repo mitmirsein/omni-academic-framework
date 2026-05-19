@@ -1,7 +1,7 @@
 ---
 name: google-scholar-semantic
 description: "구글 스콜라 시맨틱. Playwright(CDP) 브라우저 기반의 구글 스콜라 시맨틱 정찰 및 인지 엔진 (RISE Protocol)."
-author: "MS_Dev"
+author: "Omni-Academic Framework"
 version: "2.8.0"
 triggers:
   - "#google-scholar"
@@ -98,4 +98,4 @@ uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/sch
 - [output-schema.md](./references/output-schema.md): JSONL 레코드와 citation 필드 정의.
 
 ---
-*Created by MS_Dev Third Gen Standard*
+*Created for the Omni-Academic Framework portable skill standard*

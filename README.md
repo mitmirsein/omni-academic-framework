@@ -15,7 +15,7 @@ status: Draft/V3-Palantir
 
 > [!WARNING]
 > **Status: Prototype (v0.6.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
-> - **구현됨**: Recon(arXiv, Crossref, EconBiz, PubMed, OpenAlex 실 API 및 Semantic Scholar, SerpAPI 기반 Google Scholar 클라이언트 탑재; KCI는 adapter scaffold; EconBiz=경제학, PubMed=의학, OpenAlex=신학·인문학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(lightpanda 바이너리 subprocess — 경로는 `OMNI_LIGHTPANDA_BIN` env 또는 PATH; 하드코딩 제거; 미설정 시 정직하게 빈 문자열), 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""), HITL→Scraper→Ontology→Audit E2E, RunStore 산출물 영속화(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance] + SQLite 인덱스; `--export-vault`로 audit통과·non-mock만 `ACADEMIC_VAULT_PATH` 경로의 볼트 Inbox/Drafts로 옵트인 export), PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` 외부툴 override·실패 시 정직), ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest에 적중 기록), Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드), **시스템 진단 & 자동 셋업 대시보드(쿼리 생략 또는 `--status` 구동 시 `.env` 자동 복사 생성 및 API 키/도구 유효성 검사 UI 출력)**.
+> - **구현됨**: Recon(arXiv, Crossref, EconBiz, PubMed, OpenAlex 실 API 및 Semantic Scholar, SerpAPI 기반 Google Scholar 클라이언트 탑재; KCI는 adapter scaffold; EconBiz=경제학, PubMed=의학, OpenAlex=신학·인문학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(lightpanda 바이너리 subprocess — 경로는 `OMNI_LIGHTPANDA_BIN` env 또는 PATH; 하드코딩 제거; 미설정 시 정직하게 빈 문자열), 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""), HITL→Scraper→Ontology→Audit E2E, RunStore 산출물 영속화(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance] + SQLite 인덱스; `--export-vault`로 audit통과·non-mock 산출물을 `ACADEMIC_VAULT_PATH` 경로의 로컬 지식 저장소 Inbox/Drafts로 옵트인 export), PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` 외부툴 override·실패 시 정직), ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest에 적중 기록), Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드), **시스템 진단 & 자동 셋업 대시보드(쿼리 생략 또는 `--status` 구동 시 `.env` 자동 복사 생성 및 API 키/도구 유효성 검사 UI 출력)**.
 > - **`[BLUEPRINT]` (미구현)**: Gate 3 Schema/Lens self-redteaming(LLM 의존), `skills/`의 stealth browser 의존 러너(외부 모듈 미포함). 외부 툴(Lightpanda/PDF 추출기)은 `OMNI_LIGHTPANDA_BIN`·`OMNI_PDF_EXTRACTOR` env로 주입(미설정 시 해당 경로만 비활성, 정직 실패).
 > - **선행 조건**: clone 후 즉시 실행 시 **`uv run omni --setup`**을 가동하면 대화형 마법사가 실행되어 필수 API 키 및 설정을 `.env` 파일에 손쉽게 기록해 줍니다. 실 추출은 API Key 및 도구 설정 필요. `skills/*` 러너는 `uv run --extra semantic-scholar ...` 방식으로 optional extra를 켜야 합니다.
 
@@ -76,7 +76,7 @@ status: Draft/V3-Palantir
 | **`SEMANTIC_SCHOLAR_API_KEY`** | Semantic Scholar 기반 고속 학술 문헌 탐색 및 인용망 리스트 조회 | 선택 (미지정 시 3초당 1회 제한) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
 | **`SERPAPI_API_KEY`** | SerpAPI 기반 Google Scholar 키워드 문헌 탐색 | 선택 (미지정 시 구글 스콜라 쿼리 비활성화) | [SerpAPI](https://serpapi.com/) |
 | **`JINA_API_KEY`** | 웹 페이지나 PDF 원문 URL에서 마크다운 형태 본문 추출 | 선택 (미지정 시 Fallback 사용) | [Jina Reader API](https://jina.ai/reader/) |
-| **`ACADEMIC_VAULT_PATH`** | Obsidian 로컬 볼트 연동 절대 경로 (예: `/Users/username/Desktop/my-vault`) | 선택 (볼트 자동 내보내기용) | 로컬 볼트 디렉토리 절대경로 입력 |
+| **`ACADEMIC_VAULT_PATH`** | 로컬 지식 저장소 루트 절대 경로 (예: `/path/to/knowledge-vault`) | 선택 (검증 산출물 내보내기용) | 사용자가 지정한 로컬 저장소 루트 경로 |
 
 ---
-*Omni-Academic Framework | MS_Dev Third Gen Standard*
+*Omni-Academic Framework | Portable Local Research Standard*

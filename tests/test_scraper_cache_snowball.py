@@ -10,6 +10,7 @@ from src.recon.engine import (
     CLIENT_FACTORY,
     PaperMetadata,
     ReconEngine,
+    SerpApiScholarClient,
 )
 from src.recon.scraper import (
     JinaReaderScraper,
@@ -140,3 +141,42 @@ def test_snowball_resolves_seed_and_parses(monkeypatch):
 
 def test_snowball_empty_doi_returns_empty():
     assert asyncio.run(CitationGraphClient().snowball("")) == []
+
+
+# ---- 4. SerpAPI fallback -------------------------------------------------
+def test_serpapi_http_failure_falls_back_to_lightpanda(monkeypatch):
+    class _FailingClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        async def get(self, url, params=None):
+            raise engine_mod.httpx.RequestError("network down")
+
+    async def fake_local(self, query, max_results=3):
+        return [PaperMetadata(title="[Google Scholar] Local", authors=["A"])]
+
+    monkeypatch.setenv("SERPAPI_API_KEY", "key")
+    monkeypatch.setattr(engine_mod.httpx, "AsyncClient", lambda *a, **k: _FailingClient())
+    monkeypatch.setattr(SerpApiScholarClient, "_search_via_local_scraper", fake_local)
+
+    papers = asyncio.run(SerpApiScholarClient().search("q"))
+    assert papers[0].title == "[Google Scholar] Local"
+
+
+def test_serpapi_error_payload_falls_back_to_lightpanda(monkeypatch):
+    async def fake_local(self, query, max_results=3):
+        return [PaperMetadata(title="[Google Scholar] Local", authors=["A"])]
+
+    monkeypatch.setenv("SERPAPI_API_KEY", "key")
+    monkeypatch.setattr(
+        engine_mod.httpx,
+        "AsyncClient",
+        lambda *a, **k: _FakeClient(route=lambda url, params: _Resp({"error": "quota"})),
+    )
+    monkeypatch.setattr(SerpApiScholarClient, "_search_via_local_scraper", fake_local)
+
+    papers = asyncio.run(SerpApiScholarClient().search("q"))
+    assert papers[0].title == "[Google Scholar] Local"

@@ -99,9 +99,9 @@ class OmniSupervisorRouter:
                 out = export_to_vault(
                     store, request.vault_path, ontology=self._last_ontology
                 )
-                self.console.print(f"[bold green]📤 볼트 export:[/bold green] {out}")
+                self.console.print(f"[bold green]📤 로컬 저장소 export:[/bold green] {out}")
             except ValueError as e:
-                self.console.print(f"[bold yellow]볼트 export 생략: {e}[/bold yellow]")
+                self.console.print(f"[bold yellow]로컬 저장소 export 생략: {e}[/bold yellow]")
 
     async def _run_recon(self, store: RunStore, query: str, lens: str,
                           forensic: bool = False, no_cache: bool = False,
@@ -248,11 +248,11 @@ def main():
     )
     parser.add_argument(
         "--export-vault", action="store_true",
-        help="audit 통과·non-mock 산출물을 볼트 Inbox/Drafts에 Markdown draft로 export",
+        help="audit 통과·non-mock 산출물을 로컬 지식 저장소 Inbox/Drafts에 Markdown draft로 export",
     )
     parser.add_argument(
         "--vault-path", type=str, default=os.environ.get("ACADEMIC_VAULT_PATH", ""),
-        help="볼트 루트 경로 (미지정 시 ACADEMIC_VAULT_PATH 환경변수). 추측하지 않음",
+        help="로컬 지식 저장소 루트 경로 (미지정 시 ACADEMIC_VAULT_PATH 환경변수). 추측하지 않음",
     )
     parser.add_argument(
         "--no-cache", action="store_true",

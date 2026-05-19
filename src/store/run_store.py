@@ -42,6 +42,12 @@ def _dump(obj: Any) -> Any:
     return obj
 
 
+def _field(obj: Any, name: str, default: Any = "") -> Any:
+    if isinstance(obj, dict):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
 class RunStore:
     def __init__(self, run_dir: Path, meta: dict, base: Path):
         self.dir = run_dir
@@ -183,26 +189,32 @@ class RunStore:
 
         lines.append("\n## 🛡️ Audit & Forensics Report")
         if self._audit:
-            passed = getattr(self._audit, "passed", self._audit.get("passed", False) if isinstance(self._audit, dict) else False)
-            score = getattr(self._audit, "score", self._audit.get("score", 0) if isinstance(self._audit, dict) else 0)
-            logs = getattr(self._audit, "logs", self._audit.get("logs", []) if isinstance(self._audit, dict) else [])
+            passed = _field(self._audit, "passed", False)
+            score = _field(self._audit, "score", 0)
+            findings = _field(self._audit, "findings", []) or []
             lines.append(f"- **Status**: {'✅ PASSED' if passed else '❌ FAILED'}")
             lines.append(f"- **Audit Score**: `{score}/100`")
-            if logs:
-                lines.append("\n### Audit Logs")
-                for log in logs:
-                    lines.append(f"- {log}")
+            if findings:
+                lines.append("\n### Audit Findings")
+                for finding in findings:
+                    severity = _field(finding, "severity", "")
+                    code = _field(finding, "code", "")
+                    message = _field(finding, "message", "")
+                    source_ref = _field(finding, "source_ref", "")
+                    ref = f" (`{source_ref}`)" if source_ref else ""
+                    lines.append(f"- **{str(severity).upper()}** `{code}`: {message}{ref}")
         else:
             lines.append("No audit report was run.")
 
         if self._forensic:
             lines.append("\n### Forensics (Gate 2)")
             for find in self._forensic:
-                f_idx = find.get("index") if isinstance(find, dict) else getattr(find, "index", "")
-                f_title = find.get("title") if isinstance(find, dict) else getattr(find, "title", "")
-                f_status = find.get("status") if isinstance(find, dict) else getattr(find, "status", "")
-                f_err = find.get("error") if isinstance(find, dict) else getattr(find, "error", "")
-                lines.append(f"- Paper `[{f_idx}]` **{f_title}**: Status `{f_status}` {f'({f_err})' if f_err else ''}")
+                severity = _field(find, "severity", "")
+                code = _field(find, "code", "")
+                message = _field(find, "message", "")
+                source_ref = _field(find, "source_ref", "")
+                ref = f" (`{source_ref}`)" if source_ref else ""
+                lines.append(f"- **{str(severity).upper()}** `{code}`: {message}{ref}")
 
         report_path = self.dir / "report.md"
         report_path.write_text("\n".join(lines), encoding="utf-8")
@@ -249,7 +261,7 @@ class RunStore:
 
 def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
                      audit_report=None) -> Optional[Path]:
-    """검증·승인된 산출물만 볼트 Inbox/Drafts에 Markdown draft로 export.
+    """검증·승인된 산출물만 로컬 지식 저장소 Inbox/Drafts에 Markdown draft로 export.
 
     경로 추측 금지(헌법: 잘못된 위치 오염 방지) — vault_path 미지정/부재 시
     거부. mock이거나 audit 미통과면 거부(자기검증 원칙).
@@ -262,9 +274,9 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
     vault = Path(vault_path)
     drafts = vault / "000 System" / "Inbox" / "Drafts"
     if not vault.is_dir():
-        raise ValueError(f"export-vault: 볼트 경로가 존재하지 않습니다: {vault}")
+        raise ValueError(f"export-vault: 로컬 저장소 경로가 존재하지 않습니다: {vault}")
     if store._meta["mock"]:
-        raise ValueError("export-vault 거부: mock 런은 볼트에 승격 불가.")
+        raise ValueError("export-vault 거부: mock 런은 로컬 저장소에 승격 불가.")
     if store._meta.get("audit_passed") is not True:
         raise ValueError("export-vault 거부: audit 미통과 산출물은 승격 불가.")
     if store._meta.get("forensic_passed") is False:
@@ -290,8 +302,9 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
         f"- Ontology: {n_nodes} nodes / {n_edges} edges",
         f"- 원본 아티팩트: `{store.dir}`",
         "",
-        "> [!note] 자동 생성 draft. 검토 후 볼트 정식 위치로 승격하십시오.",
+        "> [!note] 자동 생성 draft. 검토 후 로컬 지식 저장소의 정식 위치로 승격하십시오.",
     ]
-    out = drafts / f"{store._meta['run_id']}.md"
+    safe_run_id = re.sub(r"[\\/]+", "__", store._meta["run_id"])
+    out = drafts / f"{safe_run_id}.md"
     out.write_text("\n".join(lines), encoding="utf-8")
     return out

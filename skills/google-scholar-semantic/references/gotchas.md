@@ -17,4 +17,4 @@
 - **출처 미비**: 인용문이나 핵심 주장을 보고할 때 해당 논문의 DOI나 정확한 서지 정보를 누락하지 마십시오.
 
 ---
-*Created by MS_Dev Third Gen Standard*
+*Created for the Omni-Academic Framework portable skill standard*

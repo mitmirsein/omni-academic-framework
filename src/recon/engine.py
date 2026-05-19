@@ -410,7 +410,8 @@ class CitationGraphClient:
 class SerpApiScholarClient(BaseAPIClient):
     """SerpAPI Google Scholar API 어댑터 (비동기).
     이 플러그인은 Google Scholar의 차단을 우회하여 키워드 검색을 안정적으로 수행합니다.
-    SERPAPI_API_KEY 환경변수가 필요합니다. 없을 경우 로컬 라이트판다 스크래핑으로 폴백합니다.
+    SERPAPI_API_KEY가 없거나 API 요청이 명확히 실패하면 로컬 Lightpanda
+    스크래핑으로 폴백합니다.
     """
     async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
         api_key = os.environ.get("SERPAPI_API_KEY")
@@ -432,6 +433,11 @@ class SerpApiScholarClient(BaseAPIClient):
                 response = await client.get(url, params=params)
                 response.raise_for_status()
                 data = response.json()
+                if data.get("error"):
+                    console.print(
+                        f"[bold red]SerpAPI 응답 오류: {data.get('error')}[/bold red]"
+                    )
+                    return await self._search_via_local_scraper(query, max_results)
                 
                 results = data.get("organic_results", [])
                 for rec in results:
@@ -466,20 +472,27 @@ class SerpApiScholarClient(BaseAPIClient):
                     ))
         except httpx.HTTPStatusError as e:
             console.print(f"[bold red]SerpAPI API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+            return await self._search_via_local_scraper(query, max_results)
         except httpx.RequestError as e:
             console.print(f"[bold red]SerpAPI 네트워크 요청 실패: {e}[/bold red]")
+            return await self._search_via_local_scraper(query, max_results)
         except (ValueError, KeyError) as e:
             console.print(f"[bold red]SerpAPI 응답 파싱 실패: {e}[/bold red]")
+            return await self._search_via_local_scraper(query, max_results)
 
         return papers
 
     async def _search_via_local_scraper(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
         import urllib.parse
-        import subprocess
 
-        lightpanda_path = "/Users/msn/Desktop/MS_Dev.nosync/bin/lightpanda"
+        from src.config.tools import resolve_tool
+
+        lightpanda_path = resolve_tool("OMNI_LIGHTPANDA_BIN", "lightpanda")
         if not os.path.exists(lightpanda_path):
-            console.print("[bold red]SerpAPI: Local Browser (Lightpanda) 바이너리가 존재하지 않아 스크래핑을 취소합니다.[/bold red]")
+            console.print(
+                "[bold red]SerpAPI: Local Browser (Lightpanda) 바이너리가 "
+                "OMNI_LIGHTPANDA_BIN 또는 PATH에 없어 스크래핑을 취소합니다.[/bold red]"
+            )
             return []
 
         encoded_query = urllib.parse.quote(query)

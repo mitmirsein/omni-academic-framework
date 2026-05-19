@@ -3,7 +3,7 @@ import sqlite3
 
 import pytest
 
-from src.audit.gate import AuditReport
+from src.audit.gate import AuditFinding, AuditReport
 from src.ontology.extractor import (
     Edge,
     EntityClass,
@@ -83,3 +83,32 @@ def test_vault_export_writes_draft_when_approved(tmp_path):
     assert out.exists()
     assert out.parent.name == "Drafts"
     assert "Omni-Academic 산출물" in out.read_text(encoding="utf-8")
+
+
+def test_report_includes_audit_and_forensic_findings(tmp_path):
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
+    finding = AuditFinding(
+        severity="warning",
+        code="MISSING_QUOTE",
+        message="source_quote 누락",
+        source_ref="n1",
+    )
+    store.write_audit(AuditReport(
+        passed=True,
+        score=90,
+        findings=[finding],
+        checked_at="2026-05-19T00:00:00+00:00",
+    ))
+    store.write_forensic([AuditFinding(
+        severity="error",
+        code="DEAD_URL",
+        message="URL 응답 없음",
+        source_ref="paper[0]",
+    )])
+    run_dir = store.finalize()
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "### Audit Findings" in report
+    assert "`MISSING_QUOTE`: source_quote 누락 (`n1`)" in report
+    assert "### Forensics (Gate 2)" in report
+    assert "`DEAD_URL`: URL 응답 없음 (`paper[0]`)" in report

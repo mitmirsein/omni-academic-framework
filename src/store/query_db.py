@@ -1,16 +1,27 @@
 """SQLite index.db 간편 조회 CLI 유틸리티.
 
 사용 예시:
-  python3 src/store/query_db.py (전체 조회)
-  python3 src/store/query_db.py theology (렌즈 필터링)
-  python3 src/store/query_db.py "Exodus" (질의어 키워드 검색)
-  python3 src/store/query_db.py "SELECT * FROM runs WHERE mock = 0" (직접 SQL 실행)
+  uv run python src/store/query_db.py (전체 조회)
+  uv run python src/store/query_db.py theology (렌즈 필터링)
+  uv run python src/store/query_db.py "Exodus" (질의어 키워드 검색)
+  uv run python src/store/query_db.py "SELECT * FROM runs WHERE mock = 0" (직접 SQL 실행)
 """
 
-import os
 import sqlite3
 import sys
 from pathlib import Path
+
+
+def _lens_names(lens_dir: str = "lenses") -> set[str]:
+    root = Path(lens_dir)
+    if not root.is_dir():
+        return set()
+    return {
+        p.stem.lower()
+        for p in root.glob("*.yaml")
+        if p.is_file() and not p.name.startswith(".")
+    }
+
 
 def main():
     db_path = Path("runs/index.db")
@@ -24,14 +35,16 @@ def main():
 
     query = "SELECT run_id, created_at, query, lens, mock, audit_passed, dir FROM runs"
     params = []
+    direct_sql = False
 
     if args:
         arg_str = " ".join(args).strip()
         # [1] 직접 SQL 입력 감지
         if arg_str.upper().startswith("SELECT"):
             query = arg_str
+            direct_sql = True
         # [2] 렌즈 필터링 (theology, economics 등)
-        elif arg_str.lower() in ("theology", "economics", "law", "general"):
+        elif arg_str.lower() in _lens_names():
             query += " WHERE lens = ?"
             params.append(arg_str.lower())
         # [3] 키워드 검색
@@ -41,7 +54,7 @@ def main():
 
     try:
         # 정렬 조건 추가 (직접 SQL이 아닌 경우에만 최신순 정렬)
-        if not query.upper().startswith("SELECT") and "ORDER BY" not in query.upper():
+        if not direct_sql:
             query += " ORDER BY created_at DESC"
 
         rows = cursor.execute(query, params).fetchall()
