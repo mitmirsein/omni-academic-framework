@@ -69,6 +69,8 @@ status: Draft/V3-Palantir
 | 환경변수명 | 역할 / 용도 | 권장 설정 여부 | 발급 및 참고처 |
 | :--- | :--- | :--- | :--- |
 | **`ANTHROPIC_API_KEY`** | Claude 모델을 이용한 핵심 온톨로지 추출 및 본문 분석 | **필수 (Live 가동 시)** | [Anthropic Console](https://console.anthropic.com/) |
+| **`OPENAI_API_KEY`** | ChatGPT 모델을 이용한 본문 가공 및 렌더링 | 선택 | [OpenAI Platform](https://platform.openai.com/) |
+| **`GEMINI_API_KEY`** | Gemini 모델을 이용한 다차원 분석 및 요약 | 선택 | [Google AI Studio](https://aistudio.google.com/) |
 | **`SEMANTIC_SCHOLAR_API_KEY`** | Semantic Scholar 기반 고속 학술 문헌 탐색 및 인용망 리스트 조회 | 선택 (미지정 시 3초당 1회 제한) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
 | **`JINA_API_KEY`** | 웹 페이지나 PDF 원문 URL에서 마크다운 형태 본문 추출 | 선택 (미지정 시 Fallback 사용) | [Jina Reader API](https://jina.ai/reader/) |
 | **`MS_BRAIN_VAULT`** | Obsidian 로컬 볼트 연동 절대 경로 (예: `/Users/username/Desktop/MS_Brain.nosync`) | 선택 (볼트 자동 내보내기용) | 로컬 볼트 디렉토리 절대경로 입력 |

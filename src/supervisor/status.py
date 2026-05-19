@@ -39,6 +39,8 @@ def run_setup_wizard():
     # 순차적 질문 목록 정의
     questions = [
         ("ANTHROPIC_API_KEY", "Anthropic API Key (Claude 모델 분석용 필수)", "https://console.anthropic.com/"),
+        ("OPENAI_API_KEY", "OpenAI API Key (ChatGPT 모델 분석 및 본문 가공 - 선택)", "https://platform.openai.com/"),
+        ("GEMINI_API_KEY", "Google Gemini API Key (Gemini 다차원 분석 및 요약 - 선택)", "https://aistudio.google.com/"),
         ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
         ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
         ("MS_BRAIN_VAULT", "Obsidian Vault 로컬 절대 경로 (예: /path/to/MS_Brain.nosync)", "로컬 볼트 연동용 절대 경로"),
@@ -130,6 +132,8 @@ def run_diagnostics():
     # 2. 상태 수집
     # API Keys
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
+    openai_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
     s2_key = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "").strip()
     jina_key = os.environ.get("JINA_API_KEY", "").strip()
     
@@ -175,6 +179,18 @@ def run_diagnostics():
         "ANTHROPIC_API_KEY",
         "[green]Configured (Active)[/green]" if anthropic_key else "[red]Missing (API calls disabled)[/red]",
         "Claude 모델을 이용한 온톨로지 추출용 (발급: console.anthropic.com)"
+    )
+    table.add_row(
+        "API Key",
+        "OPENAI_API_KEY",
+        "[green]Configured[/green]" if openai_key else "[yellow]Not Configured (Optional)[/yellow]",
+        "ChatGPT 모델을 이용한 본문 가공 및 렌더링용 (발급: platform.openai.com)"
+    )
+    table.add_row(
+        "API Key",
+        "GEMINI_API_KEY",
+        "[green]Configured[/green]" if gemini_key else "[yellow]Not Configured (Optional)[/yellow]",
+        "Gemini 모델을 이용한 다차원 분석 및 요약용 (발급: aistudio.google.com)"
     )
     table.add_row(
         "API Key",
