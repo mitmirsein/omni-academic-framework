@@ -120,12 +120,17 @@ class RunStore:
             f"- **Query / Document**: {self._meta['query']}",
             f"- **Lens**: `{self._meta['lens']}`",
             f"- **Mock Mode**: {'Yes (Offline Mock)' if self._meta['mock'] else 'No (Live API/LLM)'}",
+            f"- **Run Status**: `{self._meta.get('status', 'unknown').upper()}`",
+        ]
+        if self._meta.get("error_message"):
+            lines.append(f"- **Error Message**: `{self._meta['error_message']}`")
+        lines.extend([
             f"- **Created At**: {self._meta['created_at']}",
             f"- **Git Commit**: `{self._meta.get('git_commit') or 'Unknown'}`",
             f"- **Audit Passed**: **{str(self._meta.get('audit_passed')).upper()}**",
             "",
             "## 🔍 Recon & Papers Summary",
-        ]
+        ])
         if self._papers:
             for idx, p in enumerate(self._papers, 1):
                 p_title = getattr(p, "title", p.get("title") if isinstance(p, dict) else str(p))

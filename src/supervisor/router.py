@@ -4,6 +4,12 @@ import os
 from enum import Enum
 from pathlib import Path
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from pydantic import BaseModel
 from rich.console import Console
 
@@ -67,6 +73,7 @@ class OmniSupervisorRouter:
             return
 
         store = RunStore.create(request.query, request.lens, mock=request.use_mock)
+        store.note("status", "running")
         try:
             if request.target_module == ModuleType.RECON:
                 await self._run_recon(
@@ -76,6 +83,13 @@ class OmniSupervisorRouter:
                 )
             elif request.target_module == ModuleType.ONTOLOGY:
                 self._run_ontology(store, _resolve_document(request.query))
+            if store._meta.get("status") == "running":
+                store.note("status", "completed")
+        except Exception as e:
+            store.note("status", "failed")
+            store.note("error_message", str(e))
+            self.console.print(f"\n[bold red]🚨 Supervisor 실행 중 에러 발생: {e}[/bold red]")
+            raise e
         finally:
             run_dir = store.finalize()
             self.console.print(f"\n[bold]💾 산출물 저장:[/bold] {run_dir}")
@@ -128,16 +142,19 @@ class OmniSupervisorRouter:
         store.note("recon_cache", engine.cache_report)
 
         if not papers:
+            store.note("status", "no_papers_found")
             self.console.print("[bold red]검색된 논문이 없습니다. 정찰을 종료합니다.[/bold red]")
             return
 
         choice = Prompt.ask("\n[bold cyan]딥다이브할 논문 번호를 승인해 주십시오 (종료: q)[/bold cyan]")
         if choice.lower() == 'q' or not choice.isdigit():
+            store.note("status", "cancelled_by_user")
             self.console.print("정찰 모듈을 종료합니다.")
             return
 
         idx = int(choice) - 1
         if not (0 <= idx < len(papers)):
+            store.note("status", "invalid_choice")
             self.console.print("[bold red]잘못된 번호입니다.[/bold red]")
             return
 
@@ -149,6 +166,8 @@ class OmniSupervisorRouter:
             # Content-Type 우선 판별(확장자 없는 PDF: arXiv /pdf/, doi 리다이렉트)
             scraper = await ScraperFactory.detect(target_paper.url)
         except ValueError as e:
+            store.note("status", "scraper_detection_failed")
+            store.note("error_message", str(e))
             self.console.print(f"[bold red]스크래퍼 선택 불가: {e}[/bold red]")
             return
 
@@ -163,6 +182,7 @@ class OmniSupervisorRouter:
             except NotImplementedError:
                 markdown_text = ""
         if not markdown_text:
+            store.note("status", "scraping_failed")
             self.console.print("[bold red]원문 스크래핑에 실패했습니다.[/bold red]")
             return
 

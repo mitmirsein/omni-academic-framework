@@ -586,6 +586,8 @@ class ReconEngine:
         self.console.print(f"[bold cyan]🔍 비동기 Recon Engine 가동 중... (Lens: {lens})[/bold cyan]")
 
         clients = self._resolve_clients(lens)
+        client_names = [type(c).__name__.replace("Client", "") for c in clients]
+        self.console.print(f"  [bold]🚀 정찰 순서 (Recon Clients Sequence):[/bold] [yellow]{' -> '.join(client_names)}[/yellow]")
         self.cache_report = {}
 
         self.console.print("  - [italic]API 플러그인 병렬 스크래핑(Gathering) 시작...[/italic]")
