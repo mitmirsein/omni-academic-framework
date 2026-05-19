@@ -1,5 +1,6 @@
 name: "Economics & Finance"
 recon_clients:
+  - econbiz
   - crossref
 focus_areas:
   - "Market Dynamics & Incentives"

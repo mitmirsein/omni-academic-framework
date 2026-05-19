@@ -13,7 +13,7 @@ status: Draft/V3-Palantir
 
 > [!WARNING]
 > **Status: Prototype (v0.5.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
-> - **구현됨**: Recon(arXiv는 `arxiv` 라이브러리, KCI/Crossref 실 API), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(로컬 lightpanda 바이너리 subprocess 연동 — 실패 시 가짜 결과 대신 빈 문자열), HITL→Scraper→Ontology→Audit E2E.
+> - **구현됨**: Recon(arXiv는 `arxiv` 라이브러리, KCI/Crossref/EconBiz 실 API; EconBiz=경제학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(로컬 lightpanda 바이너리 subprocess 연동 — 실패 시 가짜 결과 대신 빈 문자열), HITL→Scraper→Ontology→Audit E2E.
 > - **`[BLUEPRINT]` (미구현)**: Gate 3 Schema/Lens self-redteaming(LLM 의존), `skills/`의 stealth browser 의존 러너(외부 모듈 미포함). Lightpanda는 머신-로컬 바이너리 경로 의존(이식 시 경로 설정 필요).
 > - **선행 조건**: clone 후 즉시 실행은 `--mock` 경로에 한함. 실 추출은 LLM provider 연결 필요. `skills/*` 러너는 `pip install -e ".[semantic-scholar,scholar-browser]"` 및 별도 stealth browser 모듈 필요(현재 repo 미포함).
 
