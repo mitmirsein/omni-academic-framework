@@ -310,9 +310,12 @@ runs/
 
 포함 내용:
 
-- run metadata
-- recon 후보 요약
-- ontology node/edge 요약
+- executive summary: status, query, lens, mock/live, audit, forensic 상태
+- provenance: run id, 생성 시각, Git commit, run directory
+- artifact index: `digest.json`, `ontology.json`, `audit.json` 등 상대 링크
+- recon cache provenance: client별 hit/miss와 cache age
+- recon 후보 요약: 저자, venue, citation count, DOI/URL, abstract excerpt
+- ontology node/edge 요약: class, paragraph_id, source_quote excerpt, relation reasoning
 - audit status 및 score
 - audit findings
 - forensic findings
@@ -443,6 +446,15 @@ uv run omni ./paper.md --module ontology --lens general --export-vault
 - forensic 실패가 manifest에 기록됨
 
 export 파일명은 `run_id`의 `/`를 `__`로 치환해 파일 경로 충돌을 피한다.
+
+export draft에는 다음 요약이 포함된다.
+
+- run metadata
+- ontology node/edge 상위 20개
+- audit finding 상위 20개
+- 원본 artifact 경로(`report.md`, `manifest.json`, `ontology.json`, `audit.json`)
+
+완전한 원천 데이터는 export draft가 아니라 `runs/<query>/<timestamp>/`의 JSON artifact를 기준으로 확인한다.
 
 ---
 

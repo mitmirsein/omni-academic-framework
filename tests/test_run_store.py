@@ -18,9 +18,10 @@ from src.store.run_store import RunStore, export_to_vault
 def _ontology():
     return OntologyMap(
         nodes=[Node(id="n1", label="A", entity_class=EntityClass.CONCEPT,
-                    paragraph_id="P_0001")],
+                    paragraph_id="P_0001", source_quote="first claim")],
         edges=[Edge(source_id="n1", target_id="n1",
-                    predicate=RelationPredicate.IS_A, reasoning="x" * 12)],
+                    predicate=RelationPredicate.IS_A, reasoning="x" * 12,
+                    source_quote="first claim")],
     )
 
 
@@ -82,7 +83,11 @@ def test_vault_export_writes_draft_when_approved(tmp_path):
     out = export_to_vault(store, str(vault), ontology=_ontology())
     assert out.exists()
     assert out.parent.name == "Drafts"
-    assert "Omni-Academic 산출물" in out.read_text(encoding="utf-8")
+    draft = out.read_text(encoding="utf-8")
+    assert "Omni-Academic 산출물" in draft
+    assert "## Ontology Nodes" in draft
+    assert "## Audit Findings" in draft
+    assert "first claim" in draft
 
 
 def test_report_includes_audit_and_forensic_findings(tmp_path):
@@ -108,7 +113,37 @@ def test_report_includes_audit_and_forensic_findings(tmp_path):
     run_dir = store.finalize()
 
     report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "## Executive Summary" in report
     assert "### Audit Findings" in report
     assert "`MISSING_QUOTE`: source_quote 누락 (`n1`)" in report
     assert "### Forensics (Gate 2)" in report
     assert "`DEAD_URL`: URL 응답 없음 (`paper[0]`)" in report
+
+
+def test_report_includes_provenance_artifacts_and_cache(tmp_path):
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
+    store.write_digest([
+        PaperMetadata(
+            title="Paper",
+            authors=["A"],
+            abstract="This is a long enough abstract for report rendering.",
+            citation_count=3,
+            venue="Journal",
+        )
+    ])
+    store.note("status", "completed")
+    store.note("recon_cache", {"CrossrefClient": {"hit": True, "age_sec": 12}})
+    store.write_audit(AuditReport(
+        passed=True,
+        score=100,
+        findings=[],
+        checked_at="2026-05-19T00:00:00+00:00",
+    ))
+    run_dir = store.finalize()
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "## Provenance" in report
+    assert "[`digest.json`](./digest.json)" in report
+    assert "`CrossrefClient`: HIT, age=12s" in report
+    assert "### [1] Paper" in report
+    assert "- No audit findings." in report

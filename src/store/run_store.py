@@ -48,6 +48,40 @@ def _field(obj: Any, name: str, default: Any = "") -> Any:
     return getattr(obj, name, default)
 
 
+def _value(obj: Any) -> str:
+    val = getattr(obj, "value", obj)
+    return "" if val is None else str(val)
+
+
+def _truncate(text: Any, limit: int = 180) -> str:
+    s = " ".join(str(text or "").split())
+    if len(s) <= limit:
+        return s
+    return s[: max(0, limit - 3)].rstrip() + "..."
+
+
+def _authors(paper: Any) -> str:
+    authors = _field(paper, "authors", []) or []
+    return ", ".join(str(a) for a in authors) if authors else "저자 미상"
+
+
+def _paper_title(paper: Any) -> str:
+    return _field(paper, "title", str(paper))
+
+
+def _finding_line(finding: Any) -> str:
+    severity = _value(_field(finding, "severity", "")).upper() or "INFO"
+    code = _value(_field(finding, "code", ""))
+    message = _field(finding, "message", "")
+    source_ref = _field(finding, "source_ref", "")
+    ref = f" (`{source_ref}`)" if source_ref else ""
+    return f"- **{severity}** `{code}`: {message}{ref}"
+
+
+def _artifact_link(name: str) -> str:
+    return f"- [`{name}`](./{name})"
+
+
 class RunStore:
     def __init__(self, run_dir: Path, meta: dict, base: Path):
         self.dir = run_dir
@@ -131,63 +165,102 @@ class RunStore:
         self._write_json("forensic.json", findings)
 
     def _generate_markdown_report(self):
+        status = self._meta.get("status", "unknown")
+        audit_passed = self._meta.get("audit_passed")
+        forensic_passed = self._meta.get("forensic_passed", None)
+        artifacts = list(dict.fromkeys(self._artifacts))
         lines = [
             "# Omni-Academic Run Report",
-            f"- **Run ID**: `{self._meta['run_id']}`",
+            "",
+            "## Executive Summary",
+            f"- **Status**: `{str(status).upper()}`",
             f"- **Query / Document**: {self._meta['query']}",
             f"- **Lens**: `{self._meta['lens']}`",
-            f"- **Mock Mode**: {'Yes (Offline Mock)' if self._meta['mock'] else 'No (Live API/LLM)'}",
-            f"- **Run Status**: `{self._meta.get('status', 'unknown').upper()}`",
+            f"- **Mode**: {'Mock / offline ontology provider' if self._meta['mock'] else 'Live providers enabled'}",
+            f"- **Audit**: `{str(audit_passed).upper()}`",
+            f"- **Forensic Gate**: `{str(forensic_passed).upper() if forensic_passed is not None else 'NOT_RUN'}`",
         ]
         if self._meta.get("error_message"):
             lines.append(f"- **Error Message**: `{self._meta['error_message']}`")
         lines.extend([
+            "",
+            "## Provenance",
+            f"- **Run ID**: `{self._meta['run_id']}`",
             f"- **Created At**: {self._meta['created_at']}",
             f"- **Git Commit**: `{self._meta.get('git_commit') or 'Unknown'}`",
-            f"- **Audit Passed**: **{str(self._meta.get('audit_passed')).upper()}**",
+            f"- **Run Directory**: `{self.dir}`",
             "",
-            "## 🔍 Recon & Papers Summary",
+            "### Artifacts",
         ])
+        if artifacts:
+            lines.extend(_artifact_link(name) for name in artifacts)
+        else:
+            lines.append("- No typed artifacts were written before report generation.")
+
+        cache = self._meta.get("recon_cache") or {}
+        if cache:
+            lines.append("\n### Recon Cache")
+            for client, info in cache.items():
+                hit = bool((info or {}).get("hit"))
+                age = (info or {}).get("age_sec")
+                age_text = f", age={age}s" if age is not None else ""
+                lines.append(f"- `{client}`: {'HIT' if hit else 'MISS'}{age_text}")
+
+        lines.append("\n## Recon & Papers")
         if self._papers:
             for idx, p in enumerate(self._papers, 1):
-                p_title = getattr(p, "title", p.get("title") if isinstance(p, dict) else str(p))
-                p_authors = getattr(p, "authors", p.get("authors") if isinstance(p, dict) else [])
-                p_url = getattr(p, "url", p.get("url") if isinstance(p, dict) else "")
-                p_doi = getattr(p, "doi", p.get("doi") if isinstance(p, dict) else "")
+                p_title = _paper_title(p)
+                p_url = _field(p, "url", "")
+                p_doi = _field(p, "doi", "")
+                p_venue = _field(p, "venue", "")
+                p_citations = _field(p, "citation_count", 0)
+                p_abstract = _field(p, "abstract", "")
                 lines.append(f"### [{idx}] {p_title}")
-                lines.append(f"- **Authors**: {', '.join(p_authors) if p_authors else '저자 미상'}")
+                lines.append(f"- **Authors**: {_authors(p)}")
+                if p_venue:
+                    lines.append(f"- **Venue**: {p_venue}")
+                lines.append(f"- **Citations**: {p_citations}")
                 if p_doi:
                     lines.append(f"- **DOI**: `{p_doi}`")
                 if p_url:
                     lines.append(f"- **URL**: {p_url}")
+                if p_abstract:
+                    lines.append(f"- **Abstract**: {_truncate(p_abstract, 300)}")
         else:
             lines.append("No paper recon data captured in this run.")
 
-        lines.append("\n## 🕸️ Extracting Ontology Map")
+        lines.append("\n## Ontology Map")
         if self._ontology:
-            nodes = getattr(self._ontology, "nodes", []) or (self._ontology.get("nodes", []) if isinstance(self._ontology, dict) else [])
-            edges = getattr(self._ontology, "edges", []) or (self._ontology.get("edges", []) if isinstance(self._ontology, dict) else [])
+            nodes = _field(self._ontology, "nodes", []) or []
+            edges = _field(self._ontology, "edges", []) or []
             lines.append(f"Total Nodes: **{len(nodes)}** | Total Edges: **{len(edges)}**\n")
             
             lines.append("### Nodes")
             for n in nodes:
-                n_id = getattr(n, "id", n.get("id") if isinstance(n, dict) else "")
-                n_label = getattr(n, "label", n.get("label") if isinstance(n, dict) else "")
-                n_class = getattr(n, "entity_class", n.get("entity_class") if isinstance(n, dict) else "")
-                n_para = getattr(n, "paragraph_id", n.get("paragraph_id") if isinstance(n, dict) else "")
-                lines.append(f"- `[{n_id}]` **{n_label}** (Class: `{n_class}`, Paragraph: `{n_para}`)")
+                n_id = _field(n, "id", "")
+                n_label = _field(n, "label", "")
+                n_class = _value(_field(n, "entity_class", ""))
+                n_para = _field(n, "paragraph_id", "")
+                n_quote = _field(n, "source_quote", "")
+                line = f"- `[{n_id}]` **{n_label}** (Class: `{n_class}`, Paragraph: `{n_para}`)"
+                if n_quote:
+                    line += f" — \"{_truncate(n_quote, 140)}\""
+                lines.append(line)
 
             lines.append("\n### Edges (Relations)")
             for e in edges:
-                e_src = getattr(e, "source_id", e.get("source_id") if isinstance(e, dict) else "")
-                e_tgt = getattr(e, "target_id", e.get("target_id") if isinstance(e, dict) else "")
-                e_pred = getattr(e, "predicate", e.get("predicate") if isinstance(e, dict) else "")
-                e_reason = getattr(e, "reasoning", e.get("reasoning", "") if isinstance(e, dict) else "")
-                lines.append(f"- `[{e_src}]` --(`{e_pred}`)--> `[{e_tgt}]` : {e_reason}")
+                e_src = _field(e, "source_id", "")
+                e_tgt = _field(e, "target_id", "")
+                e_pred = _value(_field(e, "predicate", ""))
+                e_reason = _field(e, "reasoning", "")
+                e_quote = _field(e, "source_quote", "")
+                lines.append(f"- `[{e_src}]` --(`{e_pred}`)--> `[{e_tgt}]`: {_truncate(e_reason, 220)}")
+                if e_quote:
+                    lines.append(f"  - Quote: \"{_truncate(e_quote, 160)}\"")
         else:
             lines.append("No ontology map generated in this run.")
 
-        lines.append("\n## 🛡️ Audit & Forensics Report")
+        lines.append("\n## Audit & Forensics")
         if self._audit:
             passed = _field(self._audit, "passed", False)
             score = _field(self._audit, "score", 0)
@@ -197,24 +270,19 @@ class RunStore:
             if findings:
                 lines.append("\n### Audit Findings")
                 for finding in findings:
-                    severity = _field(finding, "severity", "")
-                    code = _field(finding, "code", "")
-                    message = _field(finding, "message", "")
-                    source_ref = _field(finding, "source_ref", "")
-                    ref = f" (`{source_ref}`)" if source_ref else ""
-                    lines.append(f"- **{str(severity).upper()}** `{code}`: {message}{ref}")
+                    lines.append(_finding_line(finding))
+            else:
+                lines.append("- No audit findings.")
         else:
             lines.append("No audit report was run.")
 
         if self._forensic:
             lines.append("\n### Forensics (Gate 2)")
             for find in self._forensic:
-                severity = _field(find, "severity", "")
-                code = _field(find, "code", "")
-                message = _field(find, "message", "")
-                source_ref = _field(find, "source_ref", "")
-                ref = f" (`{source_ref}`)" if source_ref else ""
-                lines.append(f"- **{str(severity).upper()}** `{code}`: {message}{ref}")
+                lines.append(_finding_line(find))
+        else:
+            lines.append("\n### Forensics (Gate 2)")
+            lines.append("- Not run.")
 
         report_path = self.dir / "report.md"
         report_path.write_text("\n".join(lines), encoding="utf-8")
@@ -285,8 +353,10 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
         )
 
     drafts.mkdir(parents=True, exist_ok=True)
-    n_nodes = len(getattr(ontology, "nodes", []) or [])
-    n_edges = len(getattr(ontology, "edges", []) or [])
+    nodes = list(getattr(ontology, "nodes", []) or [])
+    edges = list(getattr(ontology, "edges", []) or [])
+    audit = audit_report or store._audit
+    findings = _field(audit, "findings", []) if audit else []
     lines = [
         "---",
         "tags: [omni-academic, recon-output, draft]",
@@ -299,11 +369,53 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
         "",
         f"- Lens: `{store._meta['lens']}`",
         f"- Audit: **{'PASSED' if store._meta.get('audit_passed') else 'N/A'}**",
-        f"- Ontology: {n_nodes} nodes / {n_edges} edges",
+        f"- Forensic: `{str(store._meta.get('forensic_passed', 'NOT_RUN')).upper()}`",
+        f"- Ontology: {len(nodes)} nodes / {len(edges)} edges",
         f"- 원본 아티팩트: `{store.dir}`",
         "",
         "> [!note] 자동 생성 draft. 검토 후 로컬 지식 저장소의 정식 위치로 승격하십시오.",
     ]
+    if nodes:
+        lines.extend(["", "## Ontology Nodes"])
+        for n in nodes[:20]:
+            n_label = _field(n, "label", "")
+            n_class = _value(_field(n, "entity_class", ""))
+            n_para = _field(n, "paragraph_id", "")
+            n_quote = _field(n, "source_quote", "")
+            line = f"- **{n_label}** (`{n_class}`, `{n_para}`)"
+            if n_quote:
+                line += f": \"{_truncate(n_quote, 160)}\""
+            lines.append(line)
+        if len(nodes) > 20:
+            lines.append(f"- ... {len(nodes) - 20} more nodes in `ontology.json`")
+
+    if edges:
+        lines.extend(["", "## Ontology Relations"])
+        for e in edges[:20]:
+            e_src = _field(e, "source_id", "")
+            e_tgt = _field(e, "target_id", "")
+            e_pred = _value(_field(e, "predicate", ""))
+            e_reason = _field(e, "reasoning", "")
+            lines.append(f"- `[{e_src}]` --(`{e_pred}`)--> `[{e_tgt}]`: {_truncate(e_reason, 180)}")
+        if len(edges) > 20:
+            lines.append(f"- ... {len(edges) - 20} more edges in `ontology.json`")
+
+    lines.extend(["", "## Audit Findings"])
+    if findings:
+        lines.extend(_finding_line(f) for f in findings[:20])
+        if len(findings) > 20:
+            lines.append(f"- ... {len(findings) - 20} more findings in `audit.json`")
+    else:
+        lines.append("- No audit findings.")
+
+    lines.extend([
+        "",
+        "## Source Artifacts",
+        f"- Report: `{store.dir / 'report.md'}`",
+        f"- Manifest: `{store.dir / 'manifest.json'}`",
+        f"- Ontology: `{store.dir / 'ontology.json'}`",
+        f"- Audit: `{store.dir / 'audit.json'}`",
+    ])
     safe_run_id = re.sub(r"[\\/]+", "__", store._meta["run_id"])
     out = drafts / f"{safe_run_id}.md"
     out.write_text("\n".join(lines), encoding="utf-8")
