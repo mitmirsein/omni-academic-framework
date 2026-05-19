@@ -209,7 +209,10 @@ class OmniSupervisorRouter:
 
 def main():
     parser = argparse.ArgumentParser(description="Omni-Academic Supervisor Router")
-    parser.add_argument("query", type=str, help="검색 쿼리 또는 타겟 문서 파일 경로")
+    parser.add_argument(
+        "query", type=str, nargs="?", default="",
+        help="검색 쿼리 또는 타겟 문서 파일 경로 (생략 시 시스템 진단/셋업 화면 표출)"
+    )
     parser.add_argument("--lens", type=str, default="general", help="장착할 도메인 렌즈 (예: cs, medical)")
     parser.add_argument(
         "--module", type=str, choices=["recon", "ontology", "analyze"],
@@ -239,7 +242,16 @@ def main():
         "--snowball", type=str, default="",
         help="키워드 검색 대신 seed DOI의 인용 네트워크 정찰(OpenAlex)",
     )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="현재 시스템 설정 및 API Key 등 로컬 진단/셋업 화면을 출력",
+    )
     args = parser.parse_args()
+
+    if args.status or not args.query:
+        from src.supervisor.status import run_diagnostics
+        run_diagnostics()
+        return
 
     request = RouterRequest(
         query=args.query,
