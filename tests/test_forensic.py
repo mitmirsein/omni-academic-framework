@@ -41,6 +41,19 @@ def test_forensic_flags_ghost_doi_and_dead_url(monkeypatch):
     assert "MALFORMED_DOI" in codes
 
 
-def test_lightpanda_is_honest_blueprint():
-    with pytest.raises(NotImplementedError):
-        asyncio.run(LightpandaScraper().fetch_markdown("https://x.com"))
+def test_lightpanda_returns_empty_on_failure_not_fake(monkeypatch):
+    # 실 lightpanda 바이너리 연동: 실패 시 가짜 마크다운이 아니라 빈 문자열을
+    # 반환해야 한다(환각 차단 원칙). subprocess는 모킹해 오프라인 보장.
+    async def fake_exec(*args, **kwargs):
+        class _P:
+            returncode = 1
+
+            async def communicate(self):
+                return b"", b"binary not available"
+
+        return _P()
+
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
+    out = asyncio.run(LightpandaScraper().fetch_markdown("https://x.com"))
+    assert out == ""
+    assert "mock markdown" not in out.lower()

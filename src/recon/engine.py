@@ -39,51 +39,47 @@ class BaseAPIClient:
         raise NotImplementedError
 
 class ArxivClient(BaseAPIClient):
-    """실시간 arXiv API 스크래핑 플러그인 (비동기)"""
-    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
-        params = urllib.parse.urlencode({
-            "search_query": f"all:{query}",
-            "start": 0,
-            "max_results": max_results,
-        })
-        url = f"http://export.arxiv.org/api/query?{params}"
-        papers = []
+    """arXiv 어댑터. 손수 짠 Atom XML 파싱 대신 검증된 `arxiv` 라이브러리에
+    페이지네이션·재시도·정렬을 위임한다. 라이브러리는 동기(+자체 rate-limit)
+    이므로 `asyncio.to_thread`로 오프로드해 async 엔진을 블로킹하지 않는다.
+    """
 
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url)
-                response.raise_for_status()
+    @staticmethod
+    def _fetch(query: str, max_results: int) -> List[PaperMetadata]:
+        import arxiv
 
-                root = ET.fromstring(response.text)
-                ns = {'atom': 'http://www.w3.org/2005/Atom'}
-
-                for entry in root.findall('atom:entry', ns):
-                    title = _norm(_findtext(entry, 'atom:title', ns))
-                    abstract = _norm(_findtext(entry, 'atom:summary', ns))
-                    url_link = _findtext(entry, 'atom:id', ns)
-                    authors = [
-                        _norm(_findtext(a, 'atom:name', ns))
-                        for a in entry.findall('atom:author', ns)
-                        if _findtext(a, 'atom:name', ns)
-                    ]
-
-                    if not title:
-                        continue
-
-                    papers.append(PaperMetadata(
-                        title=f"[arXiv] {title}",
-                        authors=authors or ["저자 미상"],
-                        abstract=abstract[:200] + "..." if len(abstract) > 200 else (abstract or "초록 없음"),
-                        url=url_link,
-                    ))
-        except httpx.HTTPStatusError as e:
-            console.print(f"[bold red]arXiv API 에러 (상태 코드 {e.response.status_code}): {e}[/bold red]")
-        except httpx.RequestError as e:
-            console.print(f"[bold red]arXiv 네트워크 요청 실패: {e}[/bold red]")
-        except ET.ParseError as e:
-            console.print(f"[bold red]arXiv XML 파싱 실패: {e}[/bold red]")
-
+        client = arxiv.Client()
+        search = arxiv.Search(
+            query=query,
+            max_results=max_results,
+            sort_by=arxiv.SortCriterion.Relevance,
+        )
+        papers: List[PaperMetadata] = []
+        for r in client.results(search):
+            title = _norm(r.title)
+            if not title:
+                continue
+            abstract = _norm(r.summary)
+            papers.append(PaperMetadata(
+                title=f"[arXiv] {title}",
+                authors=[_norm(a.name) for a in r.authors] or ["저자 미상"],
+                abstract=abstract[:200] + "..." if len(abstract) > 200 else (abstract or "초록 없음"),
+                doi=r.doi,
+                url=r.entry_id,
+                venue=r.journal_ref or None,
+            ))
         return papers
+
+    async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        try:
+            return await asyncio.to_thread(self._fetch, query, max_results)
+        except ModuleNotFoundError:
+            console.print(
+                "[bold red]arXiv: 'arxiv' 패키지가 필요합니다 (uv sync).[/bold red]"
+            )
+        except Exception as e:  # arxiv.ArxivError 등 라이브러리 예외 포함
+            console.print(f"[bold red]arXiv 검색 실패: {e}[/bold red]")
+        return []
 
 class KCIClient(BaseAPIClient):
     """실시간 한국학술지인용색인(KCI) 오픈 API 플러그인 (비동기)"""
