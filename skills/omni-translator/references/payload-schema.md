@@ -1,7 +1,7 @@
 # Reformed Translation Pipeline: Payload Schema (Author Mode)
 
 > **출처**: `reformed-translation-pipeline` v3.1에서 이식 (2026-04-17)
-> theology-translator의 "Author Mode" 활성화 시 사용하는 입력 스키마.
+> omni-translator의 "Author Mode" 활성화 시 사용하는 입력 스키마.
 
 신학적 고위험 텍스트(바르트, 본회퍼 등 특정 저자의 1차 문헌) 번역의 정밀도를 보장하기 위해 다음 JSON 구조를 입력으로 사용합니다.
 
@@ -38,4 +38,4 @@
 - **multimodal_mode**: `true`일 경우 `source_image`로부터 OCR 추출 후 번역을 수행.
 
 ---
-*Migrated from reformed-translation-pipeline v3.1 → theology-translator v5.1*
+*Migrated from reformed-translation-pipeline v3.1 → omni-translator v5.1*

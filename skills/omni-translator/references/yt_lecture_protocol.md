@@ -78,7 +78,7 @@ yt-dlp --write-auto-subs --skip-download --sub-lang de [URL] -o "[파일명].%(e
 
 ## 3단계: 하네스 기반 번역 (Fidelity Translation)
 
-> **핵심**: `theology-translator` 스킬의 **Fidelity Harness (§1)** 전체 적용. 교정본의 ¶ 구조를 그대로 계승.
+> **핵심**: `omni-translator` 스킬의 **Fidelity Harness (§1)** 전체 적용. 교정본의 ¶ 구조를 그대로 계승.
 
 ### 3.1 번역 원칙
 - **전체 번역(Full Fidelity)**: 임의 축소/요약 절대 금지. 모든 비유, 예시, 반복 강조를 그대로 전사.

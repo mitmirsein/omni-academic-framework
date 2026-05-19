@@ -1,6 +1,6 @@
 ---
-name: theology-translator
-description: Translates theological documents using a Fidelity Harness that structurally prevents summarization. Features Phase 0 Pre-Forensics (Style Guide) and 3-stage Agent Role Isolation (Drafter, Red-Team Auditor, Stylist) for zero-loss integrity.
+name: omni-translator
+description: Translates academic documents using a Fidelity Harness that structurally prevents summarization. Features Phase 0 Pre-Forensics (Style Guide) and 3-stage Agent Role Isolation (Drafter, Red-Team Auditor, Stylist) for zero-loss integrity.
 version: 6.0.0 (Agent Role Isolation & Style Guide Enforcement)
 author: MS_Dev
 triggers:
@@ -9,7 +9,7 @@ triggers:
   - "검수 팀 가동해"
   - "#번역"
   - "/translate"
-  - "translate [file] using theology pipeline"
+  - "translate [file] using omni pipeline"
 capabilities:
   - orchestrator_led_translation_team
   - paragraph_id_binding
@@ -22,7 +22,7 @@ default_direction: "외국어(DE/EN/LA) → 한국어(KO)"
 references_path: "./references"
 ---
 
-# 📜 Theology Translator v6.0 — Agent Role Isolation Edition
+# 📜 Omni Translator v6.0 — Agent Role Isolation Edition
 
 ## 0. Design Philosophy: Why "Harness", Not "Rule"
 
@@ -171,7 +171,7 @@ uv run python agents/translator_audit.py --source <원문> --target <최종번�
 ---
 
 ## 5. Reference Links
-- [gotchas.md](./references/gotchas.md): 신학 번역 시 피해야 할 함정, Red-Team Protocol, Anti-Summary Tripwire.
+- [gotchas.md](./references/gotchas.md): 학술 번역 시 피해야 할 함정, Red-Team Protocol, Anti-Summary Tripwire.
 - [yt_lecture_protocol.md](./references/yt_lecture_protocol.md): **[v2.0 ARC SOP]** YT 자막 번역 3단계 세부 공정 + 의무 2단계 검수 기준.
 - [translation-loop.md](./references/translation-loop.md): 4역할 에이전틱 루프의 작동 원리.
 - [status-terminology.md](./references/status-terminology.md): 표준 용어집 및 참조 경로 규정.
@@ -179,4 +179,4 @@ uv run python agents/translator_audit.py --source <원문> --target <최종번�
 - [author-mode-roles.md](./references/author-mode-roles.md): Author Mode 에이전트 확장 역할.
 
 ---
-*Theology Translator v6.0 — Agent Role Isolation Edition | MS_Dev Third Gen Standard*
+*Omni Translator v6.0 — Agent Role Isolation Edition | MS_Dev Third Gen Standard*
