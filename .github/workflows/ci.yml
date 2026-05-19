@@ -18,7 +18,8 @@ jobs:
           python-version: "3.11"
 
       - name: Sync dev dependencies
-        run: uv sync --extra dev
+        # scholar-browser: Scholar 파서 snapshot 테스트가 실 게이트로 돌도록
+        run: uv sync --extra dev --extra scholar-browser
 
       - name: Ruff (lint gate — real-bug signals only)
         run: uv run ruff check src tests

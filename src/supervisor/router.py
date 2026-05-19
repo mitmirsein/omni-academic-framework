@@ -40,6 +40,22 @@ class RouterRequest(BaseModel):
     llm_critic: bool = False
 
 
+async def _probe_url(url: str) -> dict:
+    """실패 진단용 best-effort HEAD: HTTP status·content-type만 수집."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0, follow_redirects=True) as c:
+            r = await c.head(url)
+            return {
+                "http_status": r.status_code,
+                "content_type": r.headers.get("content-type"),
+                "final_url": str(r.url),
+            }
+    except Exception as e:  # noqa: BLE001 — 진단 경로, 모든 실패를 기록만
+        return {"http_status": None, "content_type": None, "probe_error": str(e)}
+
+
 def _resolve_document(query: str) -> str:
     """query가 실존 파일 경로면 내용을 읽고, 아니면 인라인 텍스트로 취급."""
     path = Path(query)
@@ -293,6 +309,13 @@ class OmniSupervisorRouter:
         except ValueError as e:
             store.note("status", run_status.SCRAPER_DETECTION_FAILED)
             store.note("error_message", str(e))
+            store.write_failure_artifact({
+                "stage": "scraper_detection",
+                "url": target_paper.url,
+                "scraper": None,
+                "error_message": str(e),
+                **(await _probe_url(target_paper.url or "")),
+            })
             self.console.print(f"[bold red]스크래퍼 선택 불가: {e}[/bold red]")
             return
 
@@ -308,6 +331,13 @@ class OmniSupervisorRouter:
                 markdown_text = ""
         if not markdown_text:
             store.note("status", run_status.SCRAPING_FAILED)
+            store.write_failure_artifact({
+                "stage": "scraping",
+                "url": target_paper.url,
+                "scraper": type(scraper).__name__,
+                "error_message": "scraper returned empty markdown",
+                **(await _probe_url(target_paper.url or "")),
+            })
             self.console.print("[bold red]원문 스크래핑에 실패했습니다.[/bold red]")
             return
 

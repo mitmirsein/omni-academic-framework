@@ -227,6 +227,18 @@ class RunStore:
         self._forensic = findings
         self._write_json("forensic.json", findings)
 
+    def write_failure_artifact(self, data: dict):
+        """현장 복구용 실패 진단 JSON. 어떤 단계에서, 어떤 scraper로,
+        어떤 HTTP status/content-type/raw 응답을 만났는지 별도 보존한다."""
+        from datetime import datetime, timezone
+
+        payload = {"recorded_at": datetime.now(timezone.utc).isoformat(), **data}
+        raw = payload.get("raw_excerpt")
+        if isinstance(raw, str) and len(raw) > 800:
+            payload["raw_excerpt"] = raw[:800] + "...(truncated)"
+        self._write_json("failure.json", payload)
+        self._meta["has_failure_artifact"] = True
+
     def write_lens_brief(self, markdown: str):
         (self.dir / "lens_brief.md").write_text(markdown or "", encoding="utf-8")
         self._artifacts.append("lens_brief.md")
@@ -274,6 +286,11 @@ class RunStore:
         if diagnostic:
             lines.extend(["", "## Failure Diagnostics"])
             lines.extend(diagnostic)
+            if self._meta.get("has_failure_artifact"):
+                lines.append(
+                    "- **Raw Diagnostic**: see `failure.json` "
+                    "(stage/scraper/HTTP status/content-type/raw excerpt)"
+                )
         lines.extend([
             "",
             "## Provenance",
