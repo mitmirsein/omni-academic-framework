@@ -1,8 +1,7 @@
-import yaml
-from pathlib import Path
-from pydantic import BaseModel
 from rich.console import Console
 from rich.panel import Panel
+
+from src.config.lens import LensNotFoundError, load_lens
 
 console = Console()
 
@@ -12,20 +11,17 @@ class LensAnalyzer:
     다시 해석(Analyze)하여 최종 리포트를 생성하는 모듈.
     """
     def __init__(self, lens_dir: str = "lenses"):
-        self.lens_dir = Path(lens_dir)
+        self.lens_dir = lens_dir
         self.console = console
 
     def analyze(self, target_document: str, lens_name: str):
         self.console.print(f"\n[bold magenta]🎯 [Lens Analyzer] 가동... (적용 렌즈: {lens_name})[/bold magenta]")
-        
-        lens_path = self.lens_dir / f"{lens_name}.yaml"
-        if not lens_path.exists():
-            self.console.print(f"[bold red]❌ Error: 렌즈 템플릿 '{lens_name}.yaml'을 찾을 수 없습니다.[/bold red]")
-            return
 
-        # YAML 렌즈 로드
-        with open(lens_path, 'r', encoding='utf-8') as f:
-            lens_config = yaml.safe_load(f)
+        try:
+            lens_config = load_lens(lens_name, self.lens_dir)
+        except LensNotFoundError as e:
+            self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
+            return
 
         name = lens_config.get("name", lens_name)
         focus_areas = "\n".join([f"- {area}" for area in lens_config.get("focus_areas", [])])

@@ -1,4 +1,7 @@
 name: "Theology & Religion"
+recon_clients:
+  - kci
+  - crossref
 focus_areas:
   - "Dogmatic & Hermeneutic Consistency"
   - "Historical & Textual Context"

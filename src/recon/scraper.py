@@ -34,17 +34,26 @@ class LightpandaScraper(BaseScraper):
     JS 렌더링이 필수적이거나 복잡한 인증/우회가 필요한 URL 원문을 긁어옵니다.
     """
     async def fetch_markdown(self, url: str) -> str:
-        console.print(f"[bold yellow]🐼 Lightpanda Browser 정찰 가동 중... URL: {url}[/bold yellow]")
-        
-        # TODO: 실제 lightpanda-recon 스킬이나 Playwright CDP 연동 로직
-        # 현재는 아키텍처 뼈대(Blueprint)로서의 더미 마크다운을 반환
-        await asyncio.sleep(1.0)
-        return f"# Extracted Document from {url}\n\nThis is a mock markdown extracted via Headless Browser (Lightpanda)."
+        # [BLUEPRINT] 실제 lightpanda 바이너리/Playwright CDP 연동 미구현.
+        # 가짜 마크다운을 성공인 양 반환하면 환각 차단 프레임워크의 자기모순이
+        # 되므로, 무손실 원칙에 따라 정직하게 실패시킨다.
+        console.print(
+            f"[bold red]🐼 LightpandaScraper 미구현(BLUEPRINT): {url} — "
+            f"headless 엔진 미연동. JinaReaderScraper 폴백 또는 외부 연동 필요.[/bold red]"
+        )
+        raise NotImplementedError(
+            "LightpandaScraper는 외부 headless 브라우저 연동이 필요한 "
+            "BLUEPRINT 상태입니다. (가짜 결과 반환 금지)"
+        )
 
 class ScraperFactory:
     """URL의 특성에 따라 적절한 Scraper를 반환하는 팩토리"""
     @staticmethod
     def get_scraper(url: str, force_headless: bool = False) -> BaseScraper:
+        # 더미/메타데이터 부재로 url이 None·빈 문자열인 경우 'in url' 연산이
+        # TypeError로 폭발하므로 경계에서 명시적으로 거부한다.
+        if not url or not url.strip():
+            raise ValueError("ScraperFactory: 유효한 URL이 필요합니다 (None/빈 문자열 거부).")
         # TODO: 휴리스틱하게 URL 도메인을 분석하여 JS 렌더링이 필요한 사이트(예: 특정 저널 플랫폼)는
         # LightpandaScraper를, 일반 페이지는 JinaReaderScraper를 반환하는 로직 고도화 가능
         if force_headless or "sciencedirect" in url or "kci.go.kr" in url:

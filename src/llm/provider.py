@@ -40,10 +40,84 @@ class OpenAIProvider(BaseLLMProvider):
         raise NotImplementedError("OpenAI API 연결은 향후 플러그인에서 활성화됩니다.")
 
 class AnthropicProvider(BaseLLMProvider):
-    """Anthropic API 플러그인 (claude-3.5-sonnet)"""
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        
+    """Anthropic Claude 플러그인.
+
+    강제 tool-use(`tool_choice`)로 Pydantic 스키마를 그대로 반환받고,
+    안정적인 하네스 지침(system)에 prompt caching을 건다. 도메인 규칙은
+    여기에 하드코딩하지 않는다(헌법 §2) — 입력 문서에서 동적으로 파악한다.
+    """
+
+    DEFAULT_MODEL = "claude-opus-4-7"
+
+    SYSTEM_INSTRUCTION = (
+        "You are a domain-agnostic academic ontology extractor. "
+        "Decompose the supplied scholarly text into a knowledge graph of "
+        "universal entity classes and standard relation predicates ONLY. "
+        "Hard rules:\n"
+        "1. Every node's paragraph_id MUST be copied verbatim from a [P_XXXX] "
+        "marker that actually appears in the supplied text. Never invent a "
+        "paragraph_id. If a claim has no [P_XXXX] anchor, do not emit a node "
+        "for it.\n"
+        "2. Do not flatten, summarize, or resolve logical tensions/aporia in "
+        "the source. Preserve contradictory poles as separate nodes/edges.\n"
+        "3. Do not inject domain-specific terminology or citation rules of "
+        "your own; reflect only what the text states.\n"
+        "4. Every edge.reasoning must quote or tightly paraphrase the "
+        "supporting span from the source.\n"
+        "Return the result solely by calling the provided tool."
+    )
+
+    def __init__(self, api_key: str, model: str | None = None):
+        if not api_key:
+            raise ValueError(
+                "AnthropicProvider: ANTHROPIC_API_KEY가 비어 있습니다. "
+                "오프라인 실행은 router의 --mock 플래그를 사용하세요."
+            )
+        try:
+            import anthropic
+        except ModuleNotFoundError as e:
+            raise ValueError(
+                "AnthropicProvider: 'anthropic' 패키지가 필요합니다 "
+                "(pip install -e \".[llm]\"). 또는 --mock 사용."
+            ) from e
+        self._anthropic = anthropic
+        self.client = anthropic.Anthropic(api_key=api_key)
+        self.model = model or self.DEFAULT_MODEL
+
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
-        # TODO: Instructor 라이브러리 등을 통한 Claude Tool calling 연결
-        raise NotImplementedError("Anthropic API 연결은 향후 플러그인에서 활성화됩니다.")
+        tool = {
+            "name": "emit_ontology_map",
+            "description": (
+                "Return the extracted ontology strictly conforming to the "
+                "input schema. This is the only allowed output channel."
+            ),
+            "input_schema": schema.model_json_schema(),
+        }
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=16000,
+                system=[
+                    {
+                        "type": "text",
+                        "text": self.SYSTEM_INSTRUCTION,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                tools=[tool],
+                tool_choice={"type": "tool", "name": "emit_ontology_map"},
+                messages=[{"role": "user", "content": prompt}],
+            )
+        except self._anthropic.APIError as e:
+            raise RuntimeError(f"Anthropic API 호출 실패: {e}") from e
+
+        tool_block = next(
+            (b for b in response.content if b.type == "tool_use"), None
+        )
+        if tool_block is None:
+            raise RuntimeError(
+                f"Anthropic 응답에 tool_use 블록이 없습니다 "
+                f"(stop_reason={response.stop_reason})."
+            )
+        # 강제 스키마 검증 — 모델이 schema를 위반하면 여기서 차단된다.
+        return schema.model_validate(tool_block.input)

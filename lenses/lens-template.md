@@ -1,13 +1,9 @@
 ---
 name: "CS & Engineering"
 description: "컴퓨터 공학 및 엔지니어링 논문을 해부하기 위한 렌즈. 아키텍처와 성능 지표에 초점을 맞춥니다."
-search_priority:
-  - arXiv
-  - Semantic Scholar
-enforce_terms:
-  - API
-  - Transformer
-  - LLM
+recon_clients:        # canonical schema: CLIENT_FACTORY 키만 허용 (arxiv|kci|crossref)
+  - arxiv
+  - crossref
 ---
 
 # 1. Epistemic Focus (분석 초점)

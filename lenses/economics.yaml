@@ -1,4 +1,6 @@
 name: "Economics & Finance"
+recon_clients:
+  - crossref
 focus_areas:
   - "Market Dynamics & Incentives"
   - "Resource Allocation & Efficiency"

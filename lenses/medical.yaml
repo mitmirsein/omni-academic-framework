@@ -1,4 +1,6 @@
 name: "Medicine & Life Sciences"
+recon_clients:
+  - crossref
 focus_areas:
   - "Clinical Efficacy & Validity"
   - "Side Effects & Toxicity"

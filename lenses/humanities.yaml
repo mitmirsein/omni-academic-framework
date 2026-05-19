@@ -1,4 +1,7 @@
 name: "Philosophy & Humanities"
+recon_clients:
+  - kci
+  - crossref
 focus_areas:
   - "Epistemological Premises"
   - "Ideological Critique"

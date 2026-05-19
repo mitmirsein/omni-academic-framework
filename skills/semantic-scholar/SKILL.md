@@ -30,10 +30,10 @@ tags: ["recon", "api", "academic", "papers"]
 
 ```bash
 # 기본 검색 (터미널 출력)
-uv run python .skills/semantic-scholar/scripts/s2_runner.py --query "Pauline justification ethics" --limit 5
+uv run python skills/semantic-scholar/scripts/s2_runner.py --query "Pauline justification ethics" --limit 5
 
 # 리포트 파일로 저장
-uv run python .skills/semantic-scholar/scripts/s2_runner.py --query "Dietrich Bonhoeffer Sermon on the Mount" --limit 10 --output "/Users/msn/Desktop/MS_Brain.nosync/010 Inbox/S2_Bonhoeffer_Report.md"
+uv run python skills/semantic-scholar/scripts/s2_runner.py --query "Dietrich Bonhoeffer Sermon on the Mount" --limit 10 --output "/Users/msn/Desktop/MS_Brain.nosync/010 Inbox/S2_Bonhoeffer_Report.md"
 ```
 
 ## ⚙️ 아키텍처 및 설정 (Architecture)

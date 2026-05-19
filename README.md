@@ -11,6 +11,12 @@ status: Draft/V3-Palantir
 
 # Omni-Academic Framework Initiative (v3.0 - Palantir Paradigm)
 
+> [!WARNING]
+> **Status: Prototype (v0.5.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
+> - **구현됨**: Recon(arXiv/KCI/Crossref 실 API), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), HITL→Scraper→Ontology→Audit E2E.
+> - **`[BLUEPRINT]` (미구현)**: Gate 3 Schema/Lens self-redteaming(LLM 의존), Lightpanda headless 스크래퍼(외부 바이너리 필요 — 가짜 결과 대신 정직하게 실패), `skills/`의 stealth browser 의존 러너(외부 모듈 미포함).
+> - **선행 조건**: clone 후 즉시 실행은 `--mock` 경로에 한함. 실 추출은 LLM provider 연결 필요. `skills/*` 러너는 `pip install -e ".[semantic-scholar,scholar-browser]"` 및 별도 stealth browser 모듈 필요(현재 repo 미포함).
+
 ## 1. 프로젝트 철학과 핵심 가치 (Core Value)
 본 프레임워크는 논문을 선형적으로 '읽는' 도구가 아니라, 다차원 정보망으로 '해체하고 장악하는' 팔란티어(Palantir)식 정보전 엔진을 지향합니다.
 1. **Ontology-First (선 지식망 구축)**: 텍스트를 분석하기 전, 텍스트 내의 지형도(Entity-Relation)를 먼저 장악하여 할루시네이션의 여지를 원천 차단합니다.
@@ -28,8 +34,8 @@ status: Draft/V3-Palantir
 - **Simple is Best**: 사용자가 "이 저널 이번 호 동향만 브리핑해"라고 하면 가볍게 Recon만 하고 멈춥니다. 
 - **유연한 Audit (선택적 감사)**: 모든 작업에 무거운 3중 감사를 돌리지 않습니다. 가벼운 작업은 Gate 1(포맷)만 통과하고, 심층 분석에만 Gate 3(실증)를 돌려 엔지니어링 오버헤드와 비용을 획기적으로 낮춥니다.
 
-## 🚀 Built-in Elite Tools Integration (내장형 정찰/스크랩 엔진)
-프레임워크는 단순히 메타데이터를 긁어오는 것에 그치지 않고, 강력한 스크래핑 및 정찰 엔진(Built-in Elite Tools)들을 프레임워크 내부에 완전히 내장하여, 불특정 다수의 사용자가 클론(Clone)만 해도 즉시 독립적으로 사용할 수 있도록 설계되었습니다.
+## 🚀 Built-in Elite Tools Integration (내장형 정찰/스크랩 엔진) `[BLUEPRINT 일부]`
+프레임워크는 메타데이터 수집에 더해 스크래핑/정찰 엔진을 내장하는 것을 **목표**로 한다. 단, `skills/`의 일부 러너(google-scholar-semantic)는 현재 repo에 미포함된 stealth browser 모듈에 의존하므로 클론만으로 즉시 독립 실행되지 않는다(선행 조건은 상단 Status 참조).
 
 1. **Recon Phase (징발 전후)**: 
    - `insane-search`: 메타데이터 징발 전후로 가동하여 광범위한 트렌드와 키워드 맥락을 선제적으로 스캔합니다.
@@ -40,9 +46,9 @@ status: Draft/V3-Palantir
 
 ## 3. 다층 감사 시스템 (The Multi-Layered Audit Gates)
 모든 서브 모듈은 반환 전 3중 철책선(Audit Gates)을 통과해야 합니다. (Fail-Fast & Retry)
-* **Gate 1: I/O Envelope Audit (구조 감사)** - `¶ 문단 ID`, 수식, 토큰 비율 훼손 검증.
-* **Gate 2: Forensic Search Audit (실증 감사)** - '유령 인용(Ghost Ref)' 및 가짜 DOI 교차 검증.
-* **Gate 3: Schema Compliance Audit (스키마 감사)** - 장착된 렌즈(Lens)의 지침과 Phase 1의 온톨로지 맵을 위배하지 않았는지 무자비하게 비판(Self-Redteaming).
+* **Gate 1: I/O Envelope Audit (구조 감사)** — `[부분 구현]` paragraph grounding(노드 paragraph_id 원문 실존), self-loop/dangling/orphan 검증. 수식·토큰 비율 검증은 `[BLUEPRINT]`.
+* **Gate 2: Forensic Search Audit (실증 감사)** — `[구현]` `ForensicAuditor`: DOI 문법 검증 + DOI/URL HEAD 실존 ping으로 '유령 인용/가짜 DOI/죽은 URL' 차단.
+* **Gate 3: Schema Compliance Audit (스키마 감사)** — `[BLUEPRINT]` 렌즈 지침 self-redteaming 미구현.
 
 ## 4. 실행 마일스톤 (Milestones)
 

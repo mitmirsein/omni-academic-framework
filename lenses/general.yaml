@@ -1,0 +1,12 @@
+name: "General Academic"
+recon_clients:
+  - crossref
+focus_areas:
+  - "Core Claim & Argument Structure"
+  - "Method & Evidence"
+  - "Limitations & Open Questions"
+analysis_prompt: |
+  Identify the central thesis, the argumentative structure, and the
+  evidentiary basis without flattening any aporia or internal tension.
+  Preserve the source's logical structure exactly; do not summarize away
+  contradictions.

@@ -1,4 +1,7 @@
 name: "Computer Science"
+recon_clients:
+  - arxiv
+  - crossref
 focus_areas:
   - "Architecture Efficiency & Performance"
   - "Computational Complexity"

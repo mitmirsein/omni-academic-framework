@@ -50,9 +50,13 @@ class OntologyExtractor:
     JSON 지형도로 구조화하는 모듈입니다.
     """
     def __init__(self, llm_provider=None):
-        from src.llm.provider import MockProvider
+        if llm_provider is None:
+            raise ValueError(
+                "OntologyExtractor: LLM provider를 명시적으로 주입해야 합니다. "
+                "오프라인/테스트는 MockProvider를 직접 주입하거나 router의 --mock 플래그를 사용하세요."
+            )
         self.console = console
-        self.llm_provider = llm_provider or MockProvider()
+        self.llm_provider = llm_provider
 
     def extract(self, document_text: str) -> OntologyMap:
         self.console.print(f"[bold magenta]🕸️ 텍스트에서 Ontology Map(RDF Triples)을 추출 중입니다... (Provider: {self.llm_provider.__class__.__name__})[/bold magenta]")
