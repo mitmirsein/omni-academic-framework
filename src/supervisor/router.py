@@ -26,6 +26,8 @@ class RouterRequest(BaseModel):
     forensic: bool = False
     export_vault: bool = False
     vault_path: str = ""
+    no_cache: bool = False
+    snowball: str = ""
 
 
 def _resolve_document(query: str) -> str:
@@ -67,8 +69,11 @@ class OmniSupervisorRouter:
         store = RunStore.create(request.query, request.lens, mock=request.use_mock)
         try:
             if request.target_module == ModuleType.RECON:
-                await self._run_recon(store, request.query, request.lens,
-                                      forensic=request.forensic)
+                await self._run_recon(
+                    store, request.query, request.lens,
+                    forensic=request.forensic, no_cache=request.no_cache,
+                    snowball=request.snowball,
+                )
             elif request.target_module == ModuleType.ONTOLOGY:
                 self._run_ontology(store, _resolve_document(request.query))
         finally:
@@ -85,16 +90,26 @@ class OmniSupervisorRouter:
                 self.console.print(f"[bold yellow]볼트 export 생략: {e}[/bold yellow]")
 
     async def _run_recon(self, store: RunStore, query: str, lens: str,
-                          forensic: bool = False):
+                          forensic: bool = False, no_cache: bool = False,
+                          snowball: str = ""):
         from rich.prompt import Prompt
 
-        from src.recon.engine import ReconEngine
+        from src.recon.engine import CitationGraphClient, ReconEngine
         from src.recon.scraper import JinaReaderScraper, ScraperFactory
 
-        engine = ReconEngine()
-        papers = await engine.search(query, lens=lens)
+        engine = ReconEngine(use_cache=not no_cache)
+        if snowball:
+            self.console.print(
+                f"[bold magenta]🕸️ Snowball 모드 (seed DOI: {snowball})[/bold magenta]"
+            )
+            papers = await CitationGraphClient().snowball(snowball)
+            store.note("mode", "snowball")
+            store.note("seed_doi", snowball)
+        else:
+            papers = await engine.search(query, lens=lens)
         engine.generate_digest(papers)
         store.write_digest(papers)
+        store.note("recon_cache", engine.cache_report)
 
         if forensic and papers:
             from src.audit.forensic import ForensicAuditor
@@ -120,7 +135,8 @@ class OmniSupervisorRouter:
         self.console.print(f"URL: {target_paper.url}")
 
         try:
-            scraper = ScraperFactory.get_scraper(target_paper.url)
+            # Content-Type 우선 판별(확장자 없는 PDF: arXiv /pdf/, doi 리다이렉트)
+            scraper = await ScraperFactory.detect(target_paper.url)
         except ValueError as e:
             self.console.print(f"[bold red]스크래퍼 선택 불가: {e}[/bold red]")
             return
@@ -202,6 +218,14 @@ def main():
         "--vault-path", type=str, default=os.environ.get("MS_BRAIN_VAULT", ""),
         help="볼트 루트 경로 (미지정 시 MS_BRAIN_VAULT 환경변수). 추측하지 않음",
     )
+    parser.add_argument(
+        "--no-cache", action="store_true",
+        help="ReconCache 바이패스(항상 fresh 호출). 캐시 적중은 manifest에 기록됨",
+    )
+    parser.add_argument(
+        "--snowball", type=str, default="",
+        help="키워드 검색 대신 seed DOI의 인용 네트워크 정찰(OpenAlex)",
+    )
     args = parser.parse_args()
 
     request = RouterRequest(
@@ -212,6 +236,8 @@ def main():
         forensic=args.forensic,
         export_vault=args.export_vault,
         vault_path=args.vault_path,
+        no_cache=args.no_cache,
+        snowball=args.snowball,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))

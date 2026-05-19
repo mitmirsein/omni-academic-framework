@@ -334,6 +334,72 @@ class OpenAlexClient(BaseAPIClient):
         return []
 
 
+class CitationGraphClient:
+    """Snowballing — 인용 네트워크 정찰 (OpenAlex 백엔드).
+
+    의도적으로 `BaseAPIClient`를 상속하지 않는다: `snowball`을 인터페이스에
+    얹으면 KCI/EconBiz/arxiv가 전부 NotImplementedError 스텁을 갖게 되어
+    피어리뷰가 지적한 인터페이스-오염 안티패턴이 재발한다. Snowball은
+    별개의 On-Demand 모드이며 OpenAlex(가장 깨끗한 오픈 인용그래프) 단일
+    백엔드로만 동작한다.
+    """
+
+    BASE = "https://api.openalex.org/works"
+
+    @staticmethod
+    def _seed_id(work: dict) -> Optional[str]:
+        oid = (work or {}).get("id") or ""
+        return oid.rsplit("/", 1)[-1] or None  # https://openalex.org/Wxxxx -> Wxxxx
+
+    async def snowball(self, doi: str, direction: str = "both",
+                       max_results: int = 10) -> List[PaperMetadata]:
+        doi = (doi or "").strip().replace("https://doi.org/", "")
+        if not doi:
+            console.print("[bold red]snowball: DOI가 비어 있습니다.[/bold red]")
+            return []
+        papers: List[PaperMetadata] = []
+        try:
+            async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
+                seed_resp = await client.get(
+                    f"{self.BASE}/doi:{doi}", params={"mailto": "noreply@example.com"}
+                )
+                seed_resp.raise_for_status()
+                wid = self._seed_id(seed_resp.json())
+                if not wid:
+                    console.print("[bold red]snowball: seed 논문 식별 실패.[/bold red]")
+                    return []
+
+                wanted = []
+                if direction in ("both", "references"):
+                    wanted.append(("references", f"cited_by:{wid}"))
+                if direction in ("both", "citations"):
+                    wanted.append(("citations", f"cites:{wid}"))
+
+                for _, filt in wanted:
+                    r = await client.get(self.BASE, params={
+                        "filter": filt, "per-page": max_results,
+                        "mailto": "noreply@example.com",
+                    })
+                    r.raise_for_status()
+                    papers.extend(OpenAlexClient._parse(r.json()))
+        except httpx.HTTPStatusError as e:
+            console.print(f"[bold red]Snowball API 에러 (상태 코드 {e.response.status_code})[/bold red]")
+        except httpx.RequestError as e:
+            console.print(f"[bold red]Snowball 네트워크 요청 실패: {e}[/bold red]")
+        except (ValueError, KeyError) as e:
+            console.print(f"[bold red]Snowball 응답 파싱 실패: {e}[/bold red]")
+
+        # url/doi 기준 중복 제거
+        seen, uniq = set(), []
+        for p in papers:
+            k = p.doi or p.url or p.title
+            if k in seen:
+                continue
+            seen.add(k)
+            uniq.append(p)
+        return uniq
+
+
 # 클라이언트 이름 → 구현. 도메인↔클라이언트 매핑은 코드가 아니라
 # lenses/*.yaml 의 recon_clients 가 결정한다(헌법 §2: 도메인 독립성).
 CLIENT_FACTORY = {
@@ -347,9 +413,17 @@ CLIENT_FACTORY = {
 
 
 class ReconEngine:
-    def __init__(self, lens_dir: str = "lenses"):
+    def __init__(self, lens_dir: str = "lenses", *, use_cache: bool = True,
+                 cache_dir: str = ".cache"):
         self.console = console
         self.lens_dir = lens_dir
+        self.use_cache = use_cache
+        self._cache = None
+        if use_cache:
+            from src.store.recon_cache import ReconCache
+            self._cache = ReconCache(base=cache_dir)
+        # manifest 자기검증용 — client별 캐시 적중/나이 기록
+        self.cache_report: dict = {}
 
     def _resolve_clients(self, lens: str) -> List[BaseAPIClient]:
         from src.config.lens import (
@@ -381,20 +455,39 @@ class ReconEngine:
         self.console.print(f"[bold cyan]🔍 비동기 Recon Engine 가동 중... (Lens: {lens})[/bold cyan]")
 
         clients = self._resolve_clients(lens)
+        self.cache_report = {}
 
         self.console.print("  - [italic]API 플러그인 병렬 스크래핑(Gathering) 시작...[/italic]")
-        
-        # asyncio를 통한 멀티 API 동시 호출 (성능 최적화)
-        tasks = [client.search(query) for client in clients]
-        results_nested = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         results: List[PaperMetadata] = []
-        for res in results_nested:
-            if isinstance(res, Exception):
-                self.console.print(f"  [red]⚠️ API 호출 중 예외 발생: {res}[/red]")
-            else:
+        live: list = []  # (client, name) — 캐시 미스라 실제 호출할 대상
+
+        for client in clients:
+            name = type(client).__name__
+            if self._cache is not None:
+                cached, age = self._cache.get(name, query, 3)
+                if cached is not None:
+                    self.cache_report[name] = {"hit": True, "age_sec": age}
+                    self.console.print(
+                        f"  [green]⚡ 캐시 적중: {name} (age {age}s)[/green]"
+                    )
+                    results.extend(PaperMetadata(**d) for d in cached)
+                    continue
+            self.cache_report[name] = {"hit": False, "age_sec": None}
+            live.append((client, name))
+
+        if live:
+            nested = await asyncio.gather(
+                *[c.search(query) for c, _ in live], return_exceptions=True
+            )
+            for (_, name), res in zip(live, nested):
+                if isinstance(res, Exception):
+                    self.console.print(f"  [red]⚠️ API 호출 중 예외 발생: {res}[/red]")
+                    continue
                 results.extend(res)
-            
+                if self._cache is not None:
+                    self._cache.put(name, query, 3, [p.model_dump(mode="json") for p in res])
+
         return self._smart_noise_filter(results)
     
     def _smart_noise_filter(self, papers: List[PaperMetadata]) -> List[PaperMetadata]:

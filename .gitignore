@@ -31,3 +31,6 @@ scratch/
 
 # Run artifacts (산출물 영속화 — 커밋 대상 아님)
 runs/
+
+# Recon HTTP 캐시 (휘발성 — provenance 아님)
+.cache/

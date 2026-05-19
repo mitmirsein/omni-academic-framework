@@ -69,6 +69,10 @@ class RunStore:
         }
         return cls(run_dir, meta, base_path)
 
+    def note(self, key: str, value: Any):
+        """manifest에 부가 프로비넌스 기록(예: recon 캐시 적중/나이)."""
+        self._meta[key] = value
+
     def _write_json(self, name: str, obj: Any):
         path = self.dir / name
         path.write_text(
