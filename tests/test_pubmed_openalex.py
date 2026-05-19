@@ -69,7 +69,7 @@ def test_openalex_handles_missing_abstract_and_source():
 
 def test_lens_blind_spots_now_covered():
     assert get_recon_client_names(load_lens("medical")) == ["pubmed", "crossref"]
-    assert get_recon_client_names(load_lens("theology")) == ["openalex", "kci", "crossref"]
+    assert get_recon_client_names(load_lens("theology")) == ["openalex", "kci", "crossref", "semanticscholar", "serpapi_scholar"]
     assert get_recon_client_names(load_lens("humanities")) == ["openalex", "kci", "crossref"]
     eng = ReconEngine()
     assert isinstance(eng._resolve_clients("medical")[0], PubMedClient)
