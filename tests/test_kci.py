@@ -236,3 +236,89 @@ def test_kci_oai_parse_page_extracts_token():
     assert token == "ABC123" and len(papers) == 1
     _, end = KciOaiClient._parse_page(_oai_page(None))
     assert end is None  # 빈 resumptionToken = 마지막 페이지
+
+
+# ── 검색어-무시 버그 수정 (GET→POST) + OAI 브리지 ──────────────────────
+from src.recon.engine import PaperMetadata  # noqa: E402
+
+
+def test_html_has_query_guard():
+    # 검색어 미반영 응답(인기 논문 오염)은 0건 처리되도록 가드 검증
+    assert KCIClient._html_has_query("<b>칼바르트 신학</b> 결과", "칼바르트 신학") is True
+    assert KCIClient._html_has_query("췌장암 담도암 인기 논문", "칼바르트 신학") is False
+    assert KCIClient._html_has_query("anything", "") is False
+
+
+def test_kci_oai_get_record_parses_standard(monkeypatch):
+    from src.recon import engine as engine_mod
+
+    class _R:
+        def __init__(self, c): self.content = c
+        def raise_for_status(self): pass
+
+    class _C:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, headers=None):
+            assert "verb=GetRecord" in url and "ART9" in url
+            return _R(_oai_page("X").replace(b"<ListRecords>", b"<GetRecord>")
+                                    .replace(b"</ListRecords>", b"</GetRecord>"))
+
+    monkeypatch.setattr(engine_mod.httpx, "AsyncClient", lambda *a, **k: _C())
+    rec = asyncio.run(KciOaiClient().get_record("ART9"))
+    assert rec is not None and rec.title.startswith("[KCI]")
+
+
+def test_kci_oai_get_record_blocked_returns_none(monkeypatch):
+    import httpx as _httpx
+
+    from src.recon import engine as engine_mod
+
+    class _C:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, url, headers=None):
+            raise _httpx.RequestError("blocked")
+
+    monkeypatch.setattr(engine_mod.httpx, "AsyncClient", lambda *a, **k: _C())
+    assert asyncio.run(KciOaiClient().get_record("ART9")) is None
+    assert asyncio.run(KciOaiClient().get_record("")) is None
+
+
+def _web_fixture():
+    return [PaperMetadata(
+        title="[KCI] T", authors=["A"],
+        abstract="초록 없음 (KCI 목록 미제공 — 본문은 Phase B)",
+        url="https://www.kci.go.kr/x?sereArticleSearchBean.artiId=ART42",
+    )]
+
+
+def test_enrich_via_oai_upgrades_abstract_else_keeps(monkeypatch):
+    async def fake_get(self, arti_id, *a, **k):
+        assert arti_id == "ART42"
+        return PaperMetadata(title="[KCI] T", authors=["A"],
+                              abstract="실제 초록 본문", doi="10.1/x")
+
+    monkeypatch.setattr(KciOaiClient, "get_record", fake_get)
+    out = asyncio.run(KCIClient._enrich_via_oai(_web_fixture()))
+    assert out[0].abstract == "실제 초록 본문" and out[0].doi == "10.1/x"
+
+    # 비활성화 env → 원본 유지(새 fixture로 공유 가변 회피)
+    monkeypatch.setenv("OMNI_KCI_OAI_ENRICH", "0")
+    out2 = asyncio.run(KCIClient._enrich_via_oai(_web_fixture()))
+    assert out2[0].abstract.startswith("초록 없음")
+
+
+def test_enrich_via_oai_graceful_when_getrecord_none(monkeypatch):
+    monkeypatch.delenv("OMNI_KCI_OAI_ENRICH", raising=False)
+
+    async def none_get(self, arti_id, *a, **k):
+        return None
+
+    monkeypatch.setattr(KciOaiClient, "get_record", none_get)
+    web = [PaperMetadata(title="[KCI] T", authors=["A"], abstract="초록 없음 ...",
+                         url="https://kci/x?artiId=ART1")]
+    out = asyncio.run(KCIClient._enrich_via_oai(web))
+    assert out[0].abstract.startswith("초록 없음")  # 차단/None → 웹 필드 유지

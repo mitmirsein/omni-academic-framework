@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-SCHEMA_VER = "v1"
+SCHEMA_VER = "v2"  # v1→v2: KCI GET 검색어-무시 버그로 오염된 캐시 전체 무효화
 DEFAULT_TTL = 86400  # 24h
 
 

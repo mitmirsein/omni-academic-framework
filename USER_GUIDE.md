@@ -695,7 +695,8 @@ uv run python -m pytest tests/test_run_store.py
   - **OAI-PMH 수확(권장·무키 표준)**: `uv run omni <q> --module recon --kci-harvest ARTI`(또는 `ARTI_CONF`/`JOUR`). base `https://open.kci.go.kr/oai/request`는 실검증(2026-05) 무인증·`oai_dc` 표준. OAI-PMH는 키워드 검색이 아니라 set 단위 *수확* 프로토콜이라 `BaseAPIClient(search)`를 상속하지 않는 별도 모드(Snowball과 동일 원칙).
   - **파서**: OAI-PMH 2.0+Dublin Core 표준 경로만 사용(네임스페이스 무력화), 검증된 식별자 체계 `oai:kci.go.kr:ARTI/{artiId}`로 landing URL 구성, 표준 fixture 스냅샷 고정. deleted 레코드·OAI error 봉투 정직 처리. `resumptionToken` 추종(후속 요청은 `verb`+`resumptionToken`만), `MAX_PAGES=50` 상한·토큰 반복 차단·네트워크 실패 시 부분 반환.
   - **Open API(키 보유 시)**: `KCI_API_KEY` 설정 시 실 `<MetaData>` 구조 검증, 키 누락 시 `resultMsg` 에러봉투 정직 처리.
-  - **Lightpanda 키워드 우회**: 키 없으면 JS 렌더 웹검색을 headless로 우회(`OMNI_LIGHTPANDA_BIN` 필요). 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 렌더 DOM 캡처로 검증, `test_kci.py` 실 fragment 스냅샷 고정. 목록뷰 무초록은 정직하게 미제공 표기. Lightpanda도 없으면 빈 결과.
+  - **httpx POST 웹검색(키워드)**: 키 없으면 실검증된 POST 계약(`poSearchBean.conditionList=KEYALL` + `poSearchBean.keywordList`)으로 직접 호출 — 서버 렌더라 Lightpanda 불필요. GET은 KCI가 무시하고 인기 논문(예: 췌장암/담도암)을 반환하는 버그라 폐기. 응답에 검색어 미반영 시 오염 차단으로 0건 처리. 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 렌더 DOM 캡처로 검증·스냅샷 고정.
+  - **OAI `GetRecord` 보강 브리지**: 웹 후보의 artiId로 OAI-PMH `GetRecord`(표준 verb)를 best-effort 호출해 초록·DOI 등을 보강. 차단·실패 시 웹 필드 유지(graceful, 무날조). `OMNI_KCI_OAI_ENRICH=0`으로 비활성. 이전 GET 버그로 오염된 캐시는 `ReconCache.SCHEMA_VER` 버전 상승으로 자동 무효화(또는 `.cache/recon.sqlite` 삭제).
 - Audit score 80 미만 자체는 export 차단 조건이 아니다. 차단은 `audit_passed=false` 또는 forensic 실패 기준이다.
 - `runs/`와 `.cache/`는 로컬 산출물이며 GitHub에 올리지 않는다.
 
