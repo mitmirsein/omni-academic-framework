@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "queries": [
+    "How do Pauline studies connect passive justification with moral agency and active ethical responsibility?"
+  ],
+  "output_dir": "Evidence/SESSION/google_scholar_labs",
+  "jsonl": "Evidence/SESSION/google_scholar_labs/scholar_labs.jsonl",
+  "domain": "theology",
+  "max_queries": 12,
+  "max_results": 10,
+  "max_queries_per_session": 4,
+  "citation_depth": "all",
+  "wait_seconds": 40,
+  "headless": false
+}
