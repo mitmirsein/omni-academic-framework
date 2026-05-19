@@ -11,7 +11,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from bs4 import BeautifulSoup
+try:
+    from bs4 import BeautifulSoup
+except ModuleNotFoundError:  # optional extra; --self-test는 없이도 안내
+    BeautifulSoup = None
+_BS4_HINT = (
+    "beautifulsoup4 미설치 — `uv sync --extra scholar-browser` 또는 "
+    "`uv run --extra scholar-browser python skills/google-scholar-semantic/"
+    "scripts/scholar_runner.py ...` 로 실행하세요."
+)
 
 # Add project root to sys.path to allow importing agents
 DEV_ROOT = Path(__file__).resolve().parents[3]
@@ -924,6 +932,11 @@ def _sample_scholar_html() -> str:
 
 
 def run_self_test() -> int:
+    if BeautifulSoup is None:
+        print(json.dumps(
+            {"self_test": "skipped", "reason": _BS4_HINT}, ensure_ascii=False, indent=2
+        ), file=sys.stderr)
+        return 2
     errors: list[str] = []
 
     def check(condition: bool, message: str) -> None:

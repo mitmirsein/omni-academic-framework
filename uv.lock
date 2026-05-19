@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.11"
 
 [options]
-exclude-newer = "2026-05-12T07:28:38.618232Z"
+exclude-newer = "2026-05-12T08:11:55.393682Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -378,7 +378,7 @@ wheels = [
 
 [[package]]
 name = "omni-academic-framework"
-version = "0.5.0"
+version = "0.5.1"
 source = { editable = "." }
 dependencies = [
     { name = "arxiv" },

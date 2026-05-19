@@ -107,14 +107,25 @@ class OmniSupervisorRouter:
             store.note("seed_doi", snowball)
         else:
             papers = await engine.search(query, lens=lens)
-        engine.generate_digest(papers)
-        store.write_digest(papers)
-        store.note("recon_cache", engine.cache_report)
-
         if forensic and papers:
             from src.audit.forensic import ForensicAuditor
             findings = await ForensicAuditor().verify_papers(papers)
             store.write_forensic(findings)
+            fpassed = ForensicAuditor.passed(findings)
+            blocked = ForensicAuditor.failed_indices(findings)
+            store.note("forensic_passed", fpassed)
+            store.note("forensic_blocked_count", len(blocked))
+            store.note("forensic_checked_count", len(papers))
+            if blocked:
+                self.console.print(
+                    f"[bold red]🛡️ Gate 2: 유령 인용/가짜 DOI {len(blocked)}건 "
+                    f"HITL 후보에서 차단[/bold red]"
+                )
+                papers = [p for i, p in enumerate(papers) if i not in blocked]
+
+        engine.generate_digest(papers)
+        store.write_digest(papers)
+        store.note("recon_cache", engine.cache_report)
 
         if not papers:
             self.console.print("[bold red]검색된 논문이 없습니다. 정찰을 종료합니다.[/bold red]")
@@ -191,7 +202,9 @@ class OmniSupervisorRouter:
         from src.analyze.lens_analyzer import LensAnalyzer
 
         LensAnalyzer().analyze(target_document, lens)
-        self.console.print("   => [bold green]최종 분석 리포트 도출 완료[/bold green]")
+        self.console.print(
+            "   => [bold yellow]렌즈 스펙 프리뷰 완료 (실 분석은 BLUEPRINT)[/bold yellow]"
+        )
 
 
 def main():

@@ -23,5 +23,11 @@ def test_unresolved_returns_empty(monkeypatch):
 
 def test_no_hardcoded_machine_local_path():
     # 회귀 방지: 머신-로컬 절대경로가 코드에 박혀선 안 된다
-    src = open("src/recon/scraper.py", encoding="utf-8").read()
-    assert "/Users/msn/" not in src
+    paths = [
+        "src/recon/scraper.py",
+        "skills/semantic-scholar/scripts/s2_runner.py",
+        "skills/semantic-scholar/scripts/legacy_researcher.py",
+    ]
+    for path in paths:
+        src = open(path, encoding="utf-8").read()
+        assert "/Users/msn/" not in src

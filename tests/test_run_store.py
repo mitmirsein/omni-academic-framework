@@ -28,14 +28,17 @@ def test_run_store_writes_artifacts_and_manifest(tmp_path):
     store = RunStore.create("Inflation Targeting!", "economics",
                             mock=False, base=str(tmp_path))
     store.write_digest([PaperMetadata(title="P", authors=["A"])])
-    store.write_paragraphs({"P_0002", "P_0001"})
+    store.write_paragraphs({"P_0001": "first", "P_0002": "second"})
     store.write_ontology(_ontology())
     store.write_audit(AuditReport(passed=True, score=100, findings=[],
                                   checked_at="2026-05-19T00:00:00+00:00"))
     run_dir = store.finalize()
 
     assert (run_dir / "digest.json").is_file()
-    assert json.loads((run_dir / "paragraphs.json").read_text()) == ["P_0001", "P_0002"]
+    assert json.loads((run_dir / "paragraphs.json").read_text()) == {
+        "P_0001": "first",
+        "P_0002": "second",
+    }
     manifest = json.loads((run_dir / "manifest.json").read_text())
     assert manifest["mock"] is False
     assert manifest["audit_passed"] is True

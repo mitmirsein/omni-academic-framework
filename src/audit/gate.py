@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Literal, Optional, Set
+from typing import Dict, List, Literal, Optional, Set, Union
 
 from pydantic import BaseModel
 from rich.console import Console
@@ -7,6 +7,11 @@ from rich.console import Console
 from src.ontology.extractor import OntologyMap
 
 console = Console()
+
+
+def _canon(text: str) -> str:
+    """인용 대조용 정규화: 소문자 + 공백 단일화."""
+    return " ".join((text or "").lower().split())
 
 
 class AuditFinding(BaseModel):
@@ -45,7 +50,7 @@ class AuditGate:
     def verify_ontology(
         self,
         ontology: OntologyMap,
-        paragraph_manifest: Optional[Set[str]] = None,
+        paragraph_manifest: Optional[Union[Set[str], Dict[str, str]]] = None,
     ) -> AuditReport:
         self.console.print(
             "\n[bold red]🛡️ [Audit Gate] 가동... 온톨로지 무결성 검증을 시작합니다.[/bold red]"
@@ -93,6 +98,12 @@ class AuditGate:
                 message="원문 paragraph manifest 미제공 → 환각 검증 불가(저신뢰).",
             ))
         else:
+            # dict면 문단 텍스트까지 보유 → source_quote in-paragraph 검사 가능.
+            # set(레거시)면 paragraph_id 실존만 검사(quote 검사 생략).
+            has_text = isinstance(paragraph_manifest, dict)
+            corpus = (
+                _canon(" ".join(paragraph_manifest.values())) if has_text else ""
+            )
             for node in ontology.nodes:
                 if node.paragraph_id not in paragraph_manifest:
                     findings.append(AuditFinding(
@@ -103,6 +114,42 @@ class AuditGate:
                         ),
                         source_ref=node.id,
                     ))
+                    continue
+                if not has_text:
+                    continue
+                q = _canon(node.source_quote)
+                if not q:
+                    findings.append(AuditFinding(
+                        severity="warning", code="MISSING_QUOTE",
+                        message=f"source_quote 누락(검증 약화): {node.label}",
+                        source_ref=node.id,
+                    ))
+                elif q not in _canon(paragraph_manifest[node.paragraph_id]):
+                    findings.append(AuditFinding(
+                        severity="error", code="UNGROUNDED_QUOTE",
+                        message=(
+                            f"인용이 해당 문단에 없음(환각): {node.label} "
+                            f"-> {node.paragraph_id}"
+                        ),
+                        source_ref=node.id,
+                    ))
+
+            if has_text:
+                for edge in ontology.edges:
+                    q = _canon(edge.source_quote)
+                    if not q:
+                        findings.append(AuditFinding(
+                            severity="warning", code="MISSING_QUOTE",
+                            message=f"엣지 source_quote 누락: {edge.source_id}->{edge.target_id}",
+                        ))
+                    elif q not in corpus:
+                        findings.append(AuditFinding(
+                            severity="error", code="UNGROUNDED_QUOTE",
+                            message=(
+                                f"엣지 인용이 원문에 없음(환각): "
+                                f"{edge.source_id}->{edge.target_id}"
+                            ),
+                        ))
 
         penalty = sum(
             25 if f.severity == "error" else 10 if f.severity == "warning" else 0

@@ -89,7 +89,10 @@ class RunStore:
         self._artifacts.append("fulltext.md")
 
     def write_paragraphs(self, manifest):
-        self._write_json("paragraphs.json", sorted(manifest))
+        if isinstance(manifest, dict):
+            self._write_json("paragraphs.json", manifest)
+        else:
+            self._write_json("paragraphs.json", sorted(manifest))
 
     def write_ontology(self, ontology):
         self._write_json("ontology.json", ontology)
@@ -159,6 +162,10 @@ def export_to_vault(store: RunStore, vault_path: str, *, ontology=None,
         raise ValueError("export-vault 거부: mock 런은 볼트에 승격 불가.")
     if store._meta.get("audit_passed") is not True:
         raise ValueError("export-vault 거부: audit 미통과 산출물은 승격 불가.")
+    if store._meta.get("forensic_passed") is False:
+        raise ValueError(
+            "export-vault 거부: Gate 2 forensic 실패(유령 인용) 산출물은 승격 불가."
+        )
 
     drafts.mkdir(parents=True, exist_ok=True)
     n_nodes = len(getattr(ontology, "nodes", []) or [])

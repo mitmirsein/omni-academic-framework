@@ -57,7 +57,7 @@ tags: ["recon", "browser", "scholar", "stealth"]
 `scripts/scholar_runner.py`를 실행하여 교차 검색을 수행합니다. 로직 지침은 [rise-logic.md](./references/rise-logic.md)를 참조하십시오.
 
 ```bash
-python skills/google-scholar-semantic/scripts/scholar_runner.py \
+uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/scholar_runner.py \
   --query-file Evidence/SESSION/QuerySet.json \
   --output-dir Evidence/SESSION/google_scholar_labs \
   --jsonl Evidence/SESSION/google_scholar_labs/scholar_labs.jsonl \
@@ -69,20 +69,20 @@ python skills/google-scholar-semantic/scripts/scholar_runner.py \
 설정 파일로 실행할 때:
 
 ```bash
-python skills/google-scholar-semantic/scripts/scholar_runner.py \
+uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/scholar_runner.py \
   --config skills/google-scholar-semantic/scripts/config.example.json
 ```
 
 브라우저 없이 경량 검증만 수행할 때:
 
 ```bash
-python skills/google-scholar-semantic/scripts/scholar_runner.py --self-test
+uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/scholar_runner.py --self-test
 ```
 
 이미 저장된 Labs HTML/텍스트만 파싱할 때:
 
 ```bash
-python skills/google-scholar-semantic/scripts/scholar_runner.py \
+uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/scholar_runner.py \
   --html scholar_result_1.html \
   --output-dir /tmp/scholar_labs_parse \
   --jsonl /tmp/scholar_labs_parse/scholar_labs.jsonl

@@ -5,8 +5,11 @@ from src.config.lens import (
     get_recon_client_names,
     load_lens,
 )
-from src.llm.provider import AnthropicProvider
+from src.audit.gate import AuditGate
+from src.llm.provider import AnthropicProvider, MockProvider
+from src.ontology.extractor import OntologyMap
 from src.recon.engine import ArxivClient, CrossrefClient, ReconEngine
+from src.text.paragraphs import assign_paragraph_ids
 
 
 def test_load_lens_reads_yaml():
@@ -38,3 +41,14 @@ def test_anthropic_provider_requires_api_key():
     # 빈 키는 설정 오류 → ValueError (router가 --mock 안내와 함께 처리)
     with pytest.raises(ValueError):
         AnthropicProvider(api_key="")
+
+
+def test_mock_provider_uses_real_paragraph_ids_and_quotes():
+    annotated, paragraph_map = assign_paragraph_ids("Alpha claim appears here.\n\nBeta method follows.")
+    ontology = MockProvider().generate_structured_output(annotated, OntologyMap)
+
+    assert [n.paragraph_id for n in ontology.nodes] == ["P_0001", "P_0002"]
+    assert all(n.source_quote for n in ontology.nodes)
+
+    report = AuditGate().verify_ontology(ontology, paragraph_manifest=paragraph_map)
+    assert report.passed

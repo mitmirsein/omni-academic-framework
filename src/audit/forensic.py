@@ -27,6 +27,24 @@ class ForensicAuditor:
     def __init__(self, timeout: float = 10.0):
         self.timeout = timeout
 
+    @staticmethod
+    def passed(findings: List[AuditFinding]) -> bool:
+        return not any(f.severity == "error" for f in findings)
+
+    @staticmethod
+    def failed_indices(findings: List[AuditFinding]) -> set:
+        """error finding의 source_ref `paper[<idx>]`에서 차단 대상 인덱스 추출."""
+        import re
+
+        out = set()
+        for f in findings:
+            if f.severity != "error" or not f.source_ref:
+                continue
+            m = re.match(r"paper\[(\d+)\]", f.source_ref)
+            if m:
+                out.add(int(m.group(1)))
+        return out
+
     async def _resolves(self, client: httpx.AsyncClient, url: str) -> bool:
         try:
             resp = await client.head(url, follow_redirects=True)

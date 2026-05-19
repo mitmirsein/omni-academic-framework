@@ -8,22 +8,35 @@ from src.ontology.extractor import (
 )
 
 
-def _map(pid_a="P_0001", pid_b="P_0002"):
+def _map(pid_a="P_0001", pid_b="P_0002", quote_a="Alpha claim", quote_b="Beta method"):
     return OntologyMap(
         nodes=[
-            Node(id="n1", label="A", entity_class=EntityClass.CONCEPT, paragraph_id=pid_a),
-            Node(id="n2", label="B", entity_class=EntityClass.METHOD, paragraph_id=pid_b),
+            Node(
+                id="n1", label="A", entity_class=EntityClass.CONCEPT,
+                paragraph_id=pid_a, source_quote=quote_a,
+            ),
+            Node(
+                id="n2", label="B", entity_class=EntityClass.METHOD,
+                paragraph_id=pid_b, source_quote=quote_b,
+            ),
         ],
         edges=[
             Edge(source_id="n1", target_id="n2",
                  predicate=RelationPredicate.USES_METHOD,
-                 reasoning="A applies method B per section 2."),
+                 reasoning="A applies method B per section 2.",
+                 source_quote=quote_a),
         ],
     )
 
 
 def test_grounded_ontology_passes():
-    report = AuditGate().verify_ontology(_map(), paragraph_manifest={"P_0001", "P_0002"})
+    report = AuditGate().verify_ontology(
+        _map(),
+        paragraph_manifest={
+            "P_0001": "Alpha claim appears here.",
+            "P_0002": "Beta method appears here.",
+        },
+    )
     assert report.passed
     assert report.score == 100
 
@@ -45,6 +58,29 @@ def test_missing_manifest_is_low_trust_failure():
 def test_self_loop_is_error():
     m = _map()
     m.edges[0].target_id = "n1"
-    report = AuditGate().verify_ontology(m, paragraph_manifest={"P_0001", "P_0002"})
+    report = AuditGate().verify_ontology(
+        m,
+        paragraph_manifest={
+            "P_0001": "Alpha claim appears here.",
+            "P_0002": "Beta method appears here.",
+        },
+    )
     assert not report.passed
     assert any(f.code == "SELF_LOOP" for f in report.findings)
+
+
+def test_quote_must_be_in_declared_paragraph():
+    report = AuditGate().verify_ontology(
+        _map(quote_a="not in paragraph"),
+        paragraph_manifest={
+            "P_0001": "Alpha claim appears here.",
+            "P_0002": "Beta method appears here.",
+        },
+    )
+    assert not report.passed
+    assert any(f.code == "UNGROUNDED_QUOTE" for f in report.findings)
+
+
+def test_legacy_manifest_set_skips_quote_check():
+    report = AuditGate().verify_ontology(_map(), paragraph_manifest={"P_0001", "P_0002"})
+    assert report.passed

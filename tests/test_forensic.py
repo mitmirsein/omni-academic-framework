@@ -39,6 +39,8 @@ def test_forensic_flags_ghost_doi_and_dead_url(monkeypatch):
     assert "DEAD_URL" in codes
     assert "NO_LOCATOR" in codes
     assert "MALFORMED_DOI" in codes
+    assert not ForensicAuditor.passed(findings)
+    assert ForensicAuditor.failed_indices(findings) == {0, 3}
 
 
 def test_lightpanda_returns_empty_on_failure_not_fake(monkeypatch):

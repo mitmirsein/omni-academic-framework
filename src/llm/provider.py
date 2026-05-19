@@ -16,19 +16,42 @@ class MockProvider(BaseLLMProvider):
     안티그래비티 IDE 환경 등 API 키 없이 즉시 가동(엔진 테스트)하기 위한 Mock 플러그인입니다.
     """
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
-        # Pydantic 스키마의 더미 데이터를 자동 생성하여 반환 (테스트용)
-        # 실제로는 schema.model_construct() 등을 사용하거나 정의된 더미 객체를 반환합니다.
-        from src.ontology.extractor import OntologyMap, Node, Edge, EntityClass, RelationPredicate
-        
-        return OntologyMap(
-            nodes=[
-                Node(id="n1", label="Mock Artifact", entity_class=EntityClass.ARTIFACT, paragraph_id="P_01"),
-                Node(id="n2", label="Mock Concept", entity_class=EntityClass.CONCEPT, paragraph_id="P_02")
-            ],
-            edges=[
-                Edge(source_id="n1", target_id="n2", predicate=RelationPredicate.USES_METHOD, reasoning="Auto-generated mock relation.")
-            ]
+        # manifest-aware mock: 프롬프트의 실제 [P_XXXX] 문단을 파싱해
+        # 존재하는 paragraph_id와 verbatim source_quote만 사용한다.
+        # → AuditGate(grounding + quote-in-paragraph)를 정상 통과해야
+        #   README의 clone-즉시 --mock 경로가 깨지지 않는다.
+        import re
+
+        from src.ontology.extractor import (
+            Edge,
+            EntityClass,
+            Node,
+            OntologyMap,
+            RelationPredicate,
         )
+
+        blocks = re.findall(r"\[(P_\d+)\]\s*(.+?)(?=\n\[P_\d+\]|\Z)", prompt, re.S)
+        if not blocks:
+            # 문단을 못 찾으면 정직하게 빈 그래프(감사에서 NO 노드 → 통과는
+            # 하되 내용 0 — 가짜 P_01 환각보다 정직하다).
+            return OntologyMap(nodes=[], edges=[])
+
+        nodes, edges = [], []
+        for i, (pid, text) in enumerate(blocks[:3], 1):
+            quote = " ".join(text.split())[:60]
+            nodes.append(Node(
+                id=f"n{i}", label=f"Mock Concept {i}",
+                entity_class=EntityClass.CONCEPT,
+                paragraph_id=pid, source_quote=quote,
+            ))
+        for i in range(len(nodes) - 1):
+            edges.append(Edge(
+                source_id=nodes[i].id, target_id=nodes[i + 1].id,
+                predicate=RelationPredicate.BUILDS_ON,
+                reasoning="Auto-generated mock relation for pipeline test.",
+                source_quote=nodes[i].source_quote,
+            ))
+        return OntologyMap(nodes=nodes, edges=edges)
 
 class OpenAIProvider(BaseLLMProvider):
     """OpenAI API 플러그인 (gpt-4o)"""
@@ -64,6 +87,11 @@ class AnthropicProvider(BaseLLMProvider):
         "your own; reflect only what the text states.\n"
         "4. Every edge.reasoning must quote or tightly paraphrase the "
         "supporting span from the source.\n"
+        "5. Every node AND every edge MUST include a `source_quote`: a "
+        "string copied VERBATIM (exact substring, <=200 chars) from the "
+        "text of its cited [P_XXXX] paragraph. The mechanical auditor "
+        "rejects any quote not literally present in that paragraph — do "
+        "not paraphrase, normalize, or translate the source_quote.\n"
         "Return the result solely by calling the provided tool."
     )
 
@@ -78,7 +106,7 @@ class AnthropicProvider(BaseLLMProvider):
         except ModuleNotFoundError as e:
             raise ValueError(
                 "AnthropicProvider: 'anthropic' 패키지가 필요합니다 "
-                "(pip install -e \".[llm]\"). 또는 --mock 사용."
+                "(`uv run --extra llm ...` 또는 `uv sync --extra llm`). 또는 --mock 사용."
             ) from e
         self._anthropic = anthropic
         self.client = anthropic.Anthropic(api_key=api_key)

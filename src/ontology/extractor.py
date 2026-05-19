@@ -32,12 +32,20 @@ class Node(BaseModel):
     label: str = Field(description="추출된 지식의 이름 (예: Transformer)")
     entity_class: EntityClass = Field(description="7대 범용 클래스 중 하나")
     paragraph_id: str = Field(description="이 지식이 기원한 원문의 문단 ID (Hallucination 방지용)")
+    source_quote: str = Field(
+        default="",
+        description="paragraph_id 문단에서 그대로 복사한 근거 인용(verbatim, 환각 차단용)",
+    )
 
 class Edge(BaseModel):
     source_id: str
     target_id: str
     predicate: RelationPredicate
     reasoning: str = Field(description="이 엣지(관계)가 성립한다고 판단한 원문의 짧은 근거")
+    source_quote: str = Field(
+        default="",
+        description="이 관계의 근거가 되는 원문 문단의 verbatim 인용",
+    )
 
 class OntologyMap(BaseModel):
     nodes: List[Node]

@@ -7,8 +7,12 @@ from datetime import datetime
 from dotenv import load_dotenv
 from pathlib import Path
 
-# Load environment variables
-load_dotenv("/Users/msn/Desktop/MS_Dev.nosync/.env")
+# .env 경로 규약: OMNI_ENV_FILE > repo 루트 .env > 기본 탐색 (하드코딩 금지)
+_env = os.environ.get("OMNI_ENV_FILE", "").strip()
+if not _env:
+    _repo_env = Path(__file__).resolve().parents[3] / ".env"
+    _env = str(_repo_env) if _repo_env.is_file() else ""
+load_dotenv(_env) if _env else load_dotenv()
 API_KEY = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
 BASE_URL = "https://api.semanticscholar.org/graph/v1"
 

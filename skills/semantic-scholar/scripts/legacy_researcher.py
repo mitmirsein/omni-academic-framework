@@ -8,6 +8,18 @@ from typing import List, Dict, Any, Optional
 import chromadb
 from sentence_transformers import SentenceTransformer
 
+
+def _theology_data_root() -> Path:
+    """Legacy local corpus root.
+
+    Machine-local absolute paths are intentionally not embedded. Set
+    OMNI_THEOLOGY_DATA_ROOT when this legacy Chroma/archive workflow is needed.
+    """
+    explicit = os.environ.get("OMNI_THEOLOGY_DATA_ROOT", "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    return Path(__file__).resolve().parents[3] / "data" / "Theology_Project.nosync"
+
 class ResearcherAgent:
     """
     수석연구원 (Researcher)
@@ -35,18 +47,10 @@ class ResearcherAgent:
         self.glossary = self._load_glossary()
 
     def _discover_db_path(self):
-        script_dir = Path(__file__).parent.parent
-        rel_path = script_dir.parent / "Theology_Project.nosync" / "vector_db"
-        if rel_path.exists():
-            return str(rel_path.absolute())
-        return "/Users/msn/Desktop/MS_Dev.nosync/data/Theology_Project.nosync/vector_db"
+        return str(_theology_data_root() / "vector_db")
 
     def _discover_archive_path(self):
-        script_dir = Path(__file__).parent.parent
-        rel_path = script_dir.parent / "Theology_Project.nosync" / "archive"
-        if rel_path.exists():
-            return rel_path
-        return Path("/Users/msn/Desktop/MS_Dev.nosync/data/Theology_Project.nosync/archive")
+        return _theology_data_root() / "archive"
 
     def _init_chroma(self):
         if os.path.exists(self.db_path):
@@ -238,15 +242,16 @@ class ResearcherAgent:
     def _load_glossary(self) -> Dict[str, Dict[str, str]]:
         """신학 용어 사전 로딩 (JSON)"""
         # 경로 탐색
-        script_dir = Path(__file__).parent.parent
-        # 우선순위 1: 상대 경로 (MS_Dev/data/...)
+        explicit = os.environ.get("OMNI_THEOLOGY_GLOSSARY", "").strip()
+        data_root = _theology_data_root()
         candidates = [
-            script_dir / "data" / "Theology_Project.nosync" / "theological_glossary.json",
-            # 우선순위 2: 절대 경로 (Fallback)
-            Path("/Users/msn/Desktop/MS_Dev.nosync/data/Theology_Project.nosync/theological_glossary.json")
+            Path(explicit).expanduser() if explicit else None,
+            data_root / "theological_glossary.json",
         ]
         
         for p in candidates:
+            if p is None:
+                continue
             if p.exists():
                 try:
                     with open(p, "r", encoding="utf-8") as f:

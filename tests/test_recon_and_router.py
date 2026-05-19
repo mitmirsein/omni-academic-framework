@@ -1,5 +1,6 @@
 from src.recon.engine import PaperMetadata, ReconEngine
-from src.supervisor.router import _resolve_document
+from src.store.run_store import RunStore
+from src.supervisor.router import OmniSupervisorRouter, _resolve_document
 
 
 def test_noise_filter_drops_editorial_keeps_substring_safe():
@@ -22,3 +23,16 @@ def test_resolve_document_reads_file(tmp_path):
 
 def test_resolve_document_inline_passthrough():
     assert _resolve_document("not a path, just a query") == "not a path, just a query"
+
+
+def test_mock_ontology_path_passes_audit(tmp_path):
+    store = RunStore.create("fixture", "general", mock=True, base=str(tmp_path))
+    router = OmniSupervisorRouter(use_mock=True)
+
+    router._run_ontology(store, "Alpha claim appears here.\n\nBeta method follows.")
+
+    store.finalize()
+    assert store._meta["audit_passed"] is True
+    assert (store.dir / "paragraphs.json").is_file()
+    assert (store.dir / "ontology.json").is_file()
+    assert (store.dir / "audit.json").is_file()
