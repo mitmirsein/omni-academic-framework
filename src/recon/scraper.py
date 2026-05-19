@@ -1,9 +1,10 @@
 import asyncio
-import os
 import urllib.parse
 
 import httpx
 from rich.console import Console
+
+from src.config.tools import resolve_tool
 
 console = Console()
 
@@ -47,10 +48,17 @@ class LightpandaScraper(BaseScraper):
     JS 렌더링이 필수적이거나 복잡한 인증/우회가 필요한 URL 원문을 긁어옵니다.
     """
     async def fetch_markdown(self, url: str) -> str:
+        binary = resolve_tool("OMNI_LIGHTPANDA_BIN", "lightpanda")
+        if not binary:
+            console.print(
+                "[bold red]Lightpanda 미설정: OMNI_LIGHTPANDA_BIN 환경변수 또는 "
+                "PATH에 lightpanda 필요 — 가짜 결과 대신 정직하게 실패[/bold red]"
+            )
+            return ""
         console.print(f"[bold cyan]🐼 Lightpanda 스크래퍼 가동 중... URL: {url}[/bold cyan]")
         try:
             process = await asyncio.create_subprocess_exec(
-                "/Users/msn/Desktop/MS_Dev.nosync/bin/lightpanda",
+                binary,
                 "fetch", "--dump", "markdown", "--strip-mode", "full", "--wait-ms", "5000", url,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
@@ -89,7 +97,7 @@ class PdfExtractorScraper(BaseScraper):
             return ""
 
     async def _external(self, url: str) -> str:
-        tool = os.environ.get("OMNI_PDF_EXTRACTOR", "").strip()
+        tool = resolve_tool("OMNI_PDF_EXTRACTOR")  # 통일 규약(임의 스크립트라 PATH 기본 없음)
         if not tool:
             return ""
         try:

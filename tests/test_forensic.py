@@ -53,7 +53,17 @@ def test_lightpanda_returns_empty_on_failure_not_fake(monkeypatch):
 
         return _P()
 
+    # OMNI_LIGHTPANDA_BIN을 세팅해 resolve_tool 통과 → subprocess 실패 경로 검증
+    monkeypatch.setenv("OMNI_LIGHTPANDA_BIN", "lightpanda-fake")
     monkeypatch.setattr(asyncio, "create_subprocess_exec", fake_exec)
     out = asyncio.run(LightpandaScraper().fetch_markdown("https://x.com"))
     assert out == ""
+
+
+def test_lightpanda_unset_fails_honestly(monkeypatch):
+    monkeypatch.delenv("OMNI_LIGHTPANDA_BIN", raising=False)
+    import src.config.tools as tools
+    monkeypatch.setattr(tools.shutil, "which", lambda _: None)
+    out = asyncio.run(LightpandaScraper().fetch_markdown("https://x.com"))
+    assert out == ""  # 하드코딩 경로 제거 — 미설정 시 정직하게 빈 문자열
     assert "mock markdown" not in out.lower()
