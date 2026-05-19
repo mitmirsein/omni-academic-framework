@@ -28,3 +28,6 @@ ENV/
 .logs/
 memories/run_logs/
 scratch/
+
+# Run artifacts (산출물 영속화 — 커밋 대상 아님)
+runs/

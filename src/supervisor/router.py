@@ -1,10 +1,13 @@
 import argparse
 import asyncio
+import os
 from enum import Enum
 from pathlib import Path
 
 from pydantic import BaseModel
 from rich.console import Console
+
+from src.store.run_store import RunStore, export_to_vault
 
 console = Console()
 
@@ -20,6 +23,9 @@ class RouterRequest(BaseModel):
     lens: str = "general"
     target_module: ModuleType
     use_mock: bool = False
+    forensic: bool = False
+    export_vault: bool = False
+    vault_path: str = ""
 
 
 def _resolve_document(query: str) -> str:
@@ -37,8 +43,6 @@ def _make_provider(use_mock: bool):
     if use_mock:
         from src.llm.provider import MockProvider
         return MockProvider()
-    import os
-
     from src.llm.provider import AnthropicProvider
     return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
@@ -49,30 +53,53 @@ class OmniSupervisorRouter:
     def __init__(self, use_mock: bool = False):
         self.console = console
         self.use_mock = use_mock
+        self._last_ontology = None
 
     async def route(self, request: RouterRequest):
         self.console.print("[bold blue]Omni-Academic Supervisor[/bold blue] 🚀")
         self.console.print(f"Lens 장착: [yellow]{request.lens}[/yellow]")
         self.use_mock = request.use_mock
 
-        if request.target_module == ModuleType.RECON:
-            await self._run_recon(request.query, request.lens)
-        elif request.target_module == ModuleType.ONTOLOGY:
-            self._run_ontology(_resolve_document(request.query))
-        elif request.target_module == ModuleType.ANALYZE:
+        if request.target_module == ModuleType.ANALYZE:
             self._run_analyze(_resolve_document(request.query), request.lens)
-        else:
-            self.console.print("[bold red]Unknown module requested.[/bold red]")
+            return
 
-    async def _run_recon(self, query: str, lens: str):
+        store = RunStore.create(request.query, request.lens, mock=request.use_mock)
+        try:
+            if request.target_module == ModuleType.RECON:
+                await self._run_recon(store, request.query, request.lens,
+                                      forensic=request.forensic)
+            elif request.target_module == ModuleType.ONTOLOGY:
+                self._run_ontology(store, _resolve_document(request.query))
+        finally:
+            run_dir = store.finalize()
+            self.console.print(f"\n[bold]💾 산출물 저장:[/bold] {run_dir}")
+
+        if request.export_vault:
+            try:
+                out = export_to_vault(
+                    store, request.vault_path, ontology=self._last_ontology
+                )
+                self.console.print(f"[bold green]📤 볼트 export:[/bold green] {out}")
+            except ValueError as e:
+                self.console.print(f"[bold yellow]볼트 export 생략: {e}[/bold yellow]")
+
+    async def _run_recon(self, store: RunStore, query: str, lens: str,
+                          forensic: bool = False):
         from rich.prompt import Prompt
 
         from src.recon.engine import ReconEngine
-        from src.recon.scraper import ScraperFactory
+        from src.recon.scraper import JinaReaderScraper, ScraperFactory
 
         engine = ReconEngine()
         papers = await engine.search(query, lens=lens)
         engine.generate_digest(papers)
+        store.write_digest(papers)
+
+        if forensic and papers:
+            from src.audit.forensic import ForensicAuditor
+            findings = await ForensicAuditor().verify_papers(papers)
+            store.write_forensic(findings)
 
         if not papers:
             self.console.print("[bold red]검색된 논문이 없습니다. 정찰을 종료합니다.[/bold red]")
@@ -98,8 +125,6 @@ class OmniSupervisorRouter:
             self.console.print(f"[bold red]스크래퍼 선택 불가: {e}[/bold red]")
             return
 
-        from src.recon.scraper import JinaReaderScraper
-
         try:
             markdown_text = await scraper.fetch_markdown(target_paper.url)
         except NotImplementedError:
@@ -114,15 +139,17 @@ class OmniSupervisorRouter:
             self.console.print("[bold red]원문 스크래핑에 실패했습니다.[/bold red]")
             return
 
+        store.write_fulltext(markdown_text)
         self.console.print("[bold green]원문 징발 성공! Ontology Extractor로 전달합니다...[/bold green]\n")
-        self._run_ontology(markdown_text)
+        self._run_ontology(store, markdown_text)
 
-    def _run_ontology(self, target_document: str):
+    def _run_ontology(self, store: RunStore, target_document: str):
         from src.audit.gate import AuditGate
         from src.ontology.extractor import OntologyExtractor
         from src.text.paragraphs import assign_paragraph_ids
 
         annotated, manifest = assign_paragraph_ids(target_document)
+        store.write_paragraphs(manifest)
 
         try:
             extractor = OntologyExtractor(llm_provider=_make_provider(self.use_mock))
@@ -131,9 +158,12 @@ class OmniSupervisorRouter:
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
 
+        self._last_ontology = ontology_map
+        store.write_ontology(ontology_map)
         self.console.print("\n[bold green]✅ Ontology Map Generation Complete![/bold green]")
 
         report = AuditGate().verify_ontology(ontology_map, paragraph_manifest=manifest)
+        store.write_audit(report)
         if report.passed:
             self.console.print_json(ontology_map.model_dump_json())
         else:
@@ -160,6 +190,18 @@ def main():
         "--mock", action="store_true",
         help="LLM 호출 없이 MockProvider로 오프라인 실행 (테스트 전용)",
     )
+    parser.add_argument(
+        "--forensic", action="store_true",
+        help="recon 결과에 Gate 2 ForensicAuditor(DOI/URL 실존 ping) 적용",
+    )
+    parser.add_argument(
+        "--export-vault", action="store_true",
+        help="audit 통과·non-mock 산출물을 볼트 Inbox/Drafts에 Markdown draft로 export",
+    )
+    parser.add_argument(
+        "--vault-path", type=str, default=os.environ.get("MS_BRAIN_VAULT", ""),
+        help="볼트 루트 경로 (미지정 시 MS_BRAIN_VAULT 환경변수). 추측하지 않음",
+    )
     args = parser.parse_args()
 
     request = RouterRequest(
@@ -167,6 +209,9 @@ def main():
         lens=args.lens,
         target_module=ModuleType(args.module),
         use_mock=args.mock,
+        forensic=args.forensic,
+        export_vault=args.export_vault,
+        vault_path=args.vault_path,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))
