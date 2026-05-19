@@ -28,6 +28,16 @@ status: Draft/V3-Palantir
 - **Simple is Best**: 사용자가 "이 저널 이번 호 동향만 브리핑해"라고 하면 가볍게 Recon만 하고 멈춥니다. 
 - **유연한 Audit (선택적 감사)**: 모든 작업에 무거운 3중 감사를 돌리지 않습니다. 가벼운 작업은 Gate 1(포맷)만 통과하고, 심층 분석에만 Gate 3(실증)를 돌려 엔지니어링 오버헤드와 비용을 획기적으로 낮춥니다.
 
+## 🚀 Elite Tools Integration Blueprint (외부 스킬망 통합)
+프레임워크는 단순히 메타데이터를 긁어오는 것에 그치지 않고, 기보유한 **강력한 외부 무기(External Elite Tools)**들을 각 파이프라인의 적재적소에 플러그인으로 호출합니다.
+
+1. **Recon Phase (징발 전후)**: 
+   - `insane-search`: 메타데이터 징발 전후로 가동하여 광범위한 트렌드와 키워드 맥락을 선제적으로 스캔합니다.
+2. **Full-Text Scraping (HITL 승인 직후)**:
+   - 사용자가 수퍼바이저를 통해 다이제스트 중 특정 논문(URL)을 승인하면 원문을 징발합니다.
+   - `Jina Reader API`: 텍스트/HTML 논문을 즉시 고순도 Markdown으로 파싱합니다 (`https://r.jina.ai/`).
+   - `lightpanda` (Headless Browser): JS 렌더링이나 복잡한 웹 환경의 논문을 우회 및 정밀 스크래핑합니다.
+
 ## 3. 다층 감사 시스템 (The Multi-Layered Audit Gates)
 모든 서브 모듈은 반환 전 3중 철책선(Audit Gates)을 통과해야 합니다. (Fail-Fast & Retry)
 * **Gate 1: I/O Envelope Audit (구조 감사)** - `¶ 문단 ID`, 수식, 토큰 비율 훼손 검증.

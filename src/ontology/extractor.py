@@ -49,35 +49,17 @@ class OntologyExtractor:
     깊은 의미 해석을 배제하고 텍스트를 범용 클래스와 표준 관계어휘(Triples) 기반의 
     JSON 지형도로 구조화하는 모듈입니다.
     """
-    def __init__(self):
+    def __init__(self, llm_provider=None):
+        from src.llm.provider import MockProvider
         self.console = console
+        self.llm_provider = llm_provider or MockProvider()
 
     def extract(self, document_text: str) -> OntologyMap:
-        self.console.print("[bold magenta]🕸️ 텍스트에서 Ontology Map(RDF Triples)을 추출 중입니다...[/bold magenta]")
+        self.console.print(f"[bold magenta]🕸️ 텍스트에서 Ontology Map(RDF Triples)을 추출 중입니다... (Provider: {self.llm_provider.__class__.__name__})[/bold magenta]")
         
-        # TODO: 실제 LLM (Gemini/Claude) 호출 시 Pydantic Schema(OntologyMap)를 
-        # Output Format으로 강제하여 넘겨주는 로직이 들어갈 자리입니다.
-        # 현재는 아키텍처 증명을 위해 Hardcoded Mock Data를 반환합니다.
+        prompt = f"Analyze the following text and return a structured ontology map:\n\n{document_text}"
         
-        mock_map = OntologyMap(
-            nodes=[
-                Node(id="n1", label="Transformer", entity_class=EntityClass.ARTIFACT, paragraph_id="P_01"),
-                Node(id="n2", label="Long-term Dependency", entity_class=EntityClass.LIMITATION, paragraph_id="P_01"),
-                Node(id="n3", label="Self-Attention", entity_class=EntityClass.CONCEPT, paragraph_id="P_02"),
-            ],
-            edges=[
-                Edge(
-                    source_id="n1", 
-                    target_id="n2", 
-                    predicate=RelationPredicate.ADDRESSES,
-                    reasoning="The paper states Transformer eliminates long-term dependency problems."
-                ),
-                Edge(
-                    source_id="n1",
-                    target_id="n3",
-                    predicate=RelationPredicate.USES_METHOD,
-                    reasoning="Transformer is entirely built on self-attention mechanism."
-                )
-            ]
-        )
-        return mock_map
+        # LLM Provider에 의존하여 Pydantic 모델을 강제 반환받음
+        ontology_map = self.llm_provider.generate_structured_output(prompt, OntologyMap)
+        
+        return ontology_map

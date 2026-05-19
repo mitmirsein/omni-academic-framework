@@ -1,5 +1,6 @@
 import argparse
 import sys
+import asyncio
 from rich.console import Console
 from pydantic import BaseModel
 from enum import Enum
@@ -24,26 +25,26 @@ class OmniSupervisorRouter:
     def __init__(self):
         self.console = console
 
-    def route(self, request: RouterRequest):
+    async def route(self, request: RouterRequest):
         self.console.print(f"[bold blue]Omni-Academic Supervisor[/bold blue] 🚀")
         self.console.print(f"Lens 장착: [yellow]{request.lens}[/yellow]")
         
         if request.target_module == ModuleType.RECON:
-            self._run_recon(request.query, request.lens)
+            await self._run_recon(request.query, request.lens)
         elif request.target_module == ModuleType.ONTOLOGY:
-            self._run_ontology(request.query)
+            await self._run_ontology(request.query)
         elif request.target_module == ModuleType.ANALYZE:
-            self._run_analyze(request.query, request.lens)
+            await self._run_analyze(request.query, request.lens)
         else:
             self.console.print("[bold red]Unknown module requested.[/bold red]")
 
-    def _run_recon(self, query: str, lens: str):
+    async def _run_recon(self, query: str, lens: str):
         from src.recon.engine import ReconEngine
         engine = ReconEngine()
-        papers = engine.search(query, lens=lens)
+        papers = await engine.search(query, lens=lens)
         engine.generate_digest(papers)
 
-    def _run_ontology(self, target_document: str):
+    async def _run_ontology(self, target_document: str):
         from src.ontology.extractor import OntologyExtractor
         from src.audit.gate import AuditGate
         
@@ -61,7 +62,7 @@ class OmniSupervisorRouter:
         else:
             self.console.print("[bold red]⚠️ Audit Gate에서 반려되었습니다. (Fail-Fast 발동)[/bold red]")
 
-    def _run_analyze(self, target_document: str, lens: str):
+    async def _run_analyze(self, target_document: str, lens: str):
         from src.analyze.lens_analyzer import LensAnalyzer
         analyzer = LensAnalyzer()
         analyzer.analyze(target_document, lens)
@@ -82,7 +83,7 @@ def main():
     )
     
     router = OmniSupervisorRouter()
-    router.route(request)
+    asyncio.run(router.route(request))
 
 if __name__ == "__main__":
     main()
