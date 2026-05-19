@@ -37,6 +37,7 @@ class RouterRequest(BaseModel):
     no_cache: bool = False
     snowball: str = ""
     llm_analysis: bool = False
+    llm_critic: bool = False
 
 
 def _resolve_document(query: str) -> str:
@@ -205,6 +206,7 @@ class OmniSupervisorRouter:
                     _resolve_document(request.query),
                     request.lens,
                     llm_analysis=request.llm_analysis,
+                    llm_critic=request.llm_critic,
                 )
             if store._meta.get("status") == run_status.RUNNING:
                 store.note("status", run_status.COMPLETED)
@@ -348,8 +350,10 @@ class OmniSupervisorRouter:
         lens: str,
         *,
         llm_analysis: bool = False,
+        llm_critic: bool = False,
     ):
         from src.analyze.lens_analyzer import LensAnalyzer
+        from src.audit.lens_gate import LensComplianceAuditor
         from src.config.lens import LensNotFoundError
 
         analyzer = LensAnalyzer()
@@ -372,10 +376,45 @@ class OmniSupervisorRouter:
                 _make_provider(self.use_mock),
             )
             store.write_lens_analysis(report, analyzer.render_analysis(report))
+            lens_audit = LensComplianceAuditor().verify(report, target_document, lens)
+            store.write_lens_audit(lens_audit)
             self.console.print(
                 "   => [bold green]LLM lens analysis 저장 완료: "
                 "lens_analysis.json, lens_analysis.md[/bold green]"
             )
+            if lens_audit.passed:
+                self.console.print(
+                    f"   => [bold green]Gate 3 Lens Compliance 통과 "
+                    f"(Score: {lens_audit.score}/100)[/bold green]"
+                )
+            else:
+                self.console.print(
+                    f"   => [bold red]Gate 3 Lens Compliance 반려 "
+                    f"(Score: {lens_audit.score}/100)[/bold red]"
+                )
+            if llm_critic:
+                critic = analyzer.build_llm_critic(
+                    target_document,
+                    lens,
+                    report,
+                    _make_provider(self.use_mock),
+                )
+                critic_audit = LensComplianceAuditor().verify_critic(
+                    critic, target_document
+                )
+                store.write_lens_critic(
+                    critic,
+                    analyzer.render_critic(critic),
+                    critic_audit,
+                )
+                self.console.print(
+                    "   => [bold green]LLM critic 저장 완료: "
+                    "lens_critic.json, lens_critic.md[/bold green]"
+                )
+                if critic.passed and critic_audit.passed:
+                    self.console.print("   => [bold green]LLM critic 통과[/bold green]")
+                else:
+                    self.console.print("   => [bold red]LLM critic 반려[/bold red]")
         if llm_analysis:
             self.console.print(
                 "   => [bold yellow]렌즈 brief 저장 완료: lens_brief.md[/bold yellow]"
@@ -425,6 +464,10 @@ def main():
     parser.add_argument(
         "--llm-analysis", action="store_true",
         help="analyze 모듈에서 source-bound LLM 분석 MVP를 추가 생성",
+    )
+    parser.add_argument(
+        "--llm-critic", action="store_true",
+        help="--llm-analysis 결과에 LLM self-redteaming critic pass를 추가 실행",
     )
     parser.add_argument(
         "--status", action="store_true",
@@ -487,7 +530,8 @@ def main():
         vault_path=args.vault_path,
         no_cache=args.no_cache,
         snowball=args.snowball,
-        llm_analysis=args.llm_analysis,
+        llm_analysis=args.llm_analysis or args.llm_critic,
+        llm_critic=args.llm_critic,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))

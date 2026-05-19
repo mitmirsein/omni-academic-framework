@@ -6,7 +6,7 @@ from src.config.lens import (
     load_lens,
 )
 from src.audit.gate import AuditGate
-from src.analyze.lens_analyzer import LensAnalyzer, LensAnalysisReport
+from src.analyze.lens_analyzer import LensAnalyzer, LensAnalysisReport, LensCriticReport
 from src.llm.provider import AnthropicProvider, MockProvider
 from src.ontology.extractor import OntologyMap
 from src.recon.engine import ArxivClient, CrossrefClient, ReconEngine
@@ -79,3 +79,22 @@ def test_lens_analyzer_builds_grounded_mock_llm_analysis():
     assert report.lens == "general"
     assert report.findings[0].paragraph_id == "P_0001"
     assert report.findings[0].source_quote == "Alpha claim appears here."
+
+
+def test_lens_analyzer_builds_mock_llm_critic():
+    analyzer = LensAnalyzer()
+    analysis = analyzer.build_llm_analysis(
+        "Alpha claim appears here.\n\nBeta method follows.",
+        "general",
+        MockProvider(),
+    )
+    critic = analyzer.build_llm_critic(
+        "Alpha claim appears here.\n\nBeta method follows.",
+        "general",
+        analysis,
+        MockProvider(),
+    )
+
+    assert isinstance(critic, LensCriticReport)
+    assert critic.passed is True
+    assert critic.risk_level == "low"

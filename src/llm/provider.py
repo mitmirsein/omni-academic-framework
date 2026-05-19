@@ -23,14 +23,25 @@ class MockProvider(BaseLLMProvider):
         import re
 
         if schema.__name__ == "LensAnalysisReport":
+            import ast
+
             blocks = re.findall(r"\[(P_\d+)\]\s*(.+?)(?=\n\[P_\d+\]|\Z)", prompt, re.S)
             lens_match = re.search(r"^Lens ID:\s*(.+)$", prompt, re.M)
             lens = lens_match.group(1).strip() if lens_match else "mock"
+            focus_match = re.search(r"^Focus Areas:\s*(.+)$", prompt, re.M)
+            try:
+                focus_areas = ast.literal_eval(focus_match.group(1)) if focus_match else []
+            except (SyntaxError, ValueError):
+                focus_areas = []
             findings = []
             for i, (pid, text) in enumerate(blocks[:3], 1):
                 quote = text.strip()[:80]
                 findings.append({
-                    "focus_area": f"Mock Focus {i}",
+                    "focus_area": (
+                        str(focus_areas[i - 1])
+                        if i - 1 < len(focus_areas)
+                        else f"Mock Focus {i}"
+                    ),
                     "paragraph_id": pid,
                     "source_quote": quote,
                     "analysis": "Mock source-bound analysis for pipeline verification.",
@@ -42,6 +53,17 @@ class MockProvider(BaseLLMProvider):
                 ),
                 "findings": findings,
                 "limitations": ["MockProvider output is not interpretive analysis."],
+            })
+
+        if schema.__name__ == "LensCriticReport":
+            return schema.model_validate({
+                "passed": True,
+                "risk_level": "low",
+                "summary": (
+                    "Mock critic found no blocking issue. This validates the "
+                    "critic artifact path, not real analytical quality."
+                ),
+                "critiques": [],
             })
 
         from src.ontology.extractor import (

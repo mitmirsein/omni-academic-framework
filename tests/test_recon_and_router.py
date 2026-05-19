@@ -95,8 +95,36 @@ def test_analyze_module_writes_mock_llm_analysis_artifacts(tmp_path):
 
     assert (run_dir / "lens_analysis.json").is_file()
     assert (run_dir / "lens_analysis.md").is_file()
+    assert (run_dir / "lens_audit.json").is_file()
+    assert manifest["lens_audit_passed"] is True
     assert "lens_analysis.json" in manifest["artifacts"]
+    assert "lens_audit.json" in manifest["artifacts"]
     assert manifest["artifact_manifest"]["lens_analysis.md"]["exists"] is True
+    assert manifest["artifact_manifest"]["lens_audit.json"]["exists"] is True
+
+
+def test_analyze_module_writes_mock_llm_critic_artifacts(tmp_path):
+    store = RunStore.create("analysis fixture", "general", mock=True, base=str(tmp_path))
+    router = OmniSupervisorRouter(use_mock=True)
+
+    router._run_analyze(
+        store,
+        "Alpha claim appears here.\n\nBeta method follows.",
+        "general",
+        llm_analysis=True,
+        llm_critic=True,
+    )
+    store.note("status", "completed")
+    run_dir = store.finalize()
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert (run_dir / "lens_critic.json").is_file()
+    assert (run_dir / "lens_critic.md").is_file()
+    assert (run_dir / "lens_critic_audit.json").is_file()
+    assert manifest["lens_critic_passed"] is True
+    assert manifest["lens_critic_audit_passed"] is True
+    assert "lens_critic.json" in manifest["artifacts"]
+    assert "lens_critic_audit.json" in manifest["artifacts"]
 
 
 def test_list_lenses_reads_registry():

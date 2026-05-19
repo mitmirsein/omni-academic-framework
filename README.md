@@ -15,8 +15,8 @@ status: Draft/V3-Palantir
 
 > [!WARNING]
 > **Status: Prototype (v0.6.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
-> - **구현됨**: Recon(arXiv, Crossref, EconBiz, PubMed, OpenAlex 실 API 및 Semantic Scholar, SerpAPI 기반 Google Scholar 클라이언트 탑재; KCI는 adapter scaffold; EconBiz=경제학, PubMed=의학, OpenAlex=신학·인문학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(lightpanda 바이너리 subprocess — 경로는 `OMNI_LIGHTPANDA_BIN` env 또는 PATH; 하드코딩 제거; 미설정 시 정직하게 빈 문자열), 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""), HITL→Scraper→Ontology→Audit E2E, RunStore 산출물 영속화(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` artifact 무결성 검증; `--export-vault`로 audit통과·non-mock 산출물을 `ACADEMIC_VAULT_PATH` 경로의 로컬 지식 저장소 Inbox/Drafts로 옵트인 export), source-bound Lens Brief 저장(`lens_brief.md`), 선택형 source-bound LLM Lens Analysis MVP(`--llm-analysis`, `lens_analysis.json/md`, source_quote 재검증), PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` 외부툴 override·실패 시 정직), ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest에 적중 기록), Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드), **시스템 진단 & 자동 셋업 대시보드(쿼리 생략 또는 `--status` 구동 시 `.env` 자동 복사 생성 및 API 키/도구 유효성 검사 UI 출력)**.
-> - **`[BLUEPRINT]` (미구현)**: Gate 3 Schema/Lens self-redteaming(LLM 의존), `skills/`의 stealth browser 의존 러너(외부 모듈 미포함). 외부 툴(Lightpanda/PDF 추출기)은 `OMNI_LIGHTPANDA_BIN`·`OMNI_PDF_EXTRACTOR` env로 주입(미설정 시 해당 경로만 비활성, 정직 실패).
+> - **구현됨**: Recon(arXiv, Crossref, EconBiz, PubMed, OpenAlex 실 API 및 Semantic Scholar, SerpAPI 기반 Google Scholar 클라이언트 탑재; KCI는 adapter scaffold; EconBiz=경제학, PubMed=의학, OpenAlex=신학·인문학 렌즈), config-driven 렌즈 레지스트리, Paragraph-ID 부여, AuditGate paragraph grounding(환각 차단), Gate 2 ForensicAuditor(DOI 문법+실존 ping, URL liveness, 유령 인용 차단), Gate 3 LensComplianceAuditor MVP(렌즈 분석의 paragraph/source_quote/focus coverage 감사), 선택형 LLM self-redteaming critic pass(`--llm-critic`, `lens_critic.json/md`), 실 AnthropicProvider(강제 tool-use+prompt caching), LightpandaScraper(lightpanda 바이너리 subprocess — 경로는 `OMNI_LIGHTPANDA_BIN` env 또는 PATH; 하드코딩 제거; 미설정 시 정직하게 빈 문자열), 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""), HITL→Scraper→Ontology→Audit E2E, RunStore 산출물 영속화(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` artifact 무결성 검증; `--export-vault`로 audit통과·non-mock 산출물을 `ACADEMIC_VAULT_PATH` 경로의 로컬 지식 저장소 Inbox/Drafts로 옵트인 export), source-bound Lens Brief 저장(`lens_brief.md`), 선택형 source-bound LLM Lens Analysis MVP(`--llm-analysis`, `lens_analysis.json/md`, `lens_audit.json`, source_quote 재검증), PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` 외부툴 override·실패 시 정직), ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest에 적중 기록), Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드), **시스템 진단 & 자동 셋업 대시보드(쿼리 생략 또는 `--status` 구동 시 `.env` 자동 복사 생성 및 API 키/도구 유효성 검사 UI 출력)**.
+> - **`[BLUEPRINT]` (미구현)**: Gate 3 critic 결과 기반 자동 수정 루프, `skills/`의 stealth browser 의존 러너(외부 모듈 미포함). 외부 툴(Lightpanda/PDF 추출기)은 `OMNI_LIGHTPANDA_BIN`·`OMNI_PDF_EXTRACTOR` env로 주입(미설정 시 해당 경로만 비활성, 정직 실패).
 > - **선행 조건**: clone 후 즉시 실행 시 **`uv run omni --setup`**을 가동하면 대화형 마법사가 실행되어 필수 API 키 및 설정을 `.env` 파일에 손쉽게 기록해 줍니다. 실 추출은 API Key 및 도구 설정 필요. `skills/*` 러너는 `uv run --extra semantic-scholar ...` 방식으로 optional extra를 켜야 합니다.
 
 ## 1. 프로젝트 철학과 핵심 가치 (Core Value)
@@ -50,7 +50,7 @@ status: Draft/V3-Palantir
 모든 서브 모듈은 반환 전 3중 철책선(Audit Gates)을 통과해야 합니다. (Fail-Fast & Retry)
 * **Gate 1: I/O Envelope Audit (구조 감사)** — `[부분 구현]` paragraph grounding(노드 paragraph_id 원문 실존), self-loop/dangling/orphan 검증. 수식·토큰 비율 검증은 `[BLUEPRINT]`.
 * **Gate 2: Forensic Search Audit (실증 감사)** — `[구현]` `ForensicAuditor`: DOI 문법 검증 + DOI/URL HEAD 실존 ping으로 '유령 인용/가짜 DOI/죽은 URL' 차단.
-* **Gate 3: Schema Compliance Audit (스키마 감사)** — `[BLUEPRINT]` 렌즈 지침 self-redteaming 미구현.
+* **Gate 3: Lens Compliance Audit (렌즈 감사)** — `[MVP 구현]` `LensComplianceAuditor`: LLM lens analysis의 paragraph_id/source_quote grounding, focus_area coverage, limitations 존재 여부를 검증. `--llm-critic`은 별도 LLM self-redteaming pass를 실행하고 critic 자체도 grounding 감사한다.
 
 ## 4. 실행 마일스톤 (Milestones)
 
@@ -62,8 +62,12 @@ status: Draft/V3-Palantir
   - `lenses/` 디렉토리에 CS, MED, THEO 등 도메인별 렌즈(스키마) 파일 구축.
 - [x] **Step 4: 통합 스트레스 테스트 (엔드투엔드)**
   - 지식망 추출 ➔ 정밀 분석 ➔ 3중 Audit 관문 통과의 전체 데이터 흐름 검증.
-- [ ] **Step 5: Gate 3 Schema Compliance Audit (자가-레드팀) 구현 `[BLUEPRINT]`**
-  - 추출 및 분석된 온톨로지 결과물이 렌즈에 규정된 지침을 충족하는지 LLM을 활용해 자동 비판 및 검증하는 최종 관문 구축.
+- [x] **Step 5a: Gate 3 Lens Compliance Audit MVP**
+  - `--llm-analysis` 결과가 렌즈 focus와 원문 paragraph/source_quote에 묶여 있는지 기계적으로 감사.
+- [x] **Step 5b: Gate 3 LLM Self-Redteaming Critic**
+  - 렌즈 지침 충족 여부를 별도 critic pass로 자동 비판하고 critic quote도 grounding 감사.
+- [ ] **Step 5c: Critic 기반 자동 수정 루프 `[BLUEPRINT]`**
+  - critic 결과를 분석 재생성/수정 프롬프트로 되먹이는 bounded retry 구현.
 
 ## 5. API 환경 설정 가이드
 본 프레임워크는 학술 데이터를 가공하고 검증하기 위해 다음과 같은 API 키 설정을 지원합니다. 터미널에서 **`uv run omni --setup`** 명령을 입력하여 대화형으로 한 번에 손쉽게 설정할 수 있습니다.

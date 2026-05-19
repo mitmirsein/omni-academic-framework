@@ -154,6 +154,8 @@ class RunStore:
         self._ontology = None
         self._audit = None
         self._forensic = []
+        self._lens_audit = None
+        self._lens_critic_audit = None
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -233,6 +235,22 @@ class RunStore:
         self._write_json("lens_analysis.json", report)
         (self.dir / "lens_analysis.md").write_text(markdown or "", encoding="utf-8")
         self._artifacts.append("lens_analysis.md")
+
+    def write_lens_audit(self, report):
+        self._lens_audit = report
+        self._write_json("lens_audit.json", report)
+        self._meta["lens_audit_passed"] = bool(getattr(report, "passed", False))
+
+    def write_lens_critic(self, report, markdown: str, audit_report):
+        self._write_json("lens_critic.json", report)
+        (self.dir / "lens_critic.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("lens_critic.md")
+        self._lens_critic_audit = audit_report
+        self._write_json("lens_critic_audit.json", audit_report)
+        self._meta["lens_critic_passed"] = bool(getattr(report, "passed", False))
+        self._meta["lens_critic_audit_passed"] = bool(
+            getattr(audit_report, "passed", False)
+        )
 
     def _generate_markdown_report(self):
         status = self._meta.get("status", "unknown")
@@ -357,6 +375,35 @@ class RunStore:
         else:
             lines.append("\n### Forensics (Gate 2)")
             lines.append("- Not run.")
+
+        if self._lens_audit:
+            passed = _field(self._lens_audit, "passed", False)
+            score = _field(self._lens_audit, "score", 0)
+            findings = _field(self._lens_audit, "findings", []) or []
+            lines.append("\n### Lens Compliance (Gate 3)")
+            lines.append(f"- **Status**: {'✅ PASSED' if passed else '❌ FAILED'}")
+            lines.append(f"- **Score**: `{score}/100`")
+            if findings:
+                for finding in findings:
+                    lines.append(_finding_line(finding))
+            else:
+                lines.append("- No lens compliance findings.")
+        else:
+            lines.append("\n### Lens Compliance (Gate 3)")
+            lines.append("- Not run.")
+
+        if self._lens_critic_audit:
+            passed = _field(self._lens_critic_audit, "passed", False)
+            score = _field(self._lens_critic_audit, "score", 0)
+            findings = _field(self._lens_critic_audit, "findings", []) or []
+            lines.append("\n### Lens Critic Audit")
+            lines.append(f"- **Status**: {'✅ PASSED' if passed else '❌ FAILED'}")
+            lines.append(f"- **Score**: `{score}/100`")
+            if findings:
+                for finding in findings:
+                    lines.append(_finding_line(finding))
+            else:
+                lines.append("- No lens critic audit findings.")
 
         report_path = self.dir / "report.md"
         report_path.write_text("\n".join(lines), encoding="utf-8")

@@ -1,3 +1,5 @@
+from typing import Literal, Optional
+
 from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.panel import Panel
@@ -20,6 +22,22 @@ class LensAnalysisReport(BaseModel):
     executive_summary: str
     findings: list[LensFinding]
     limitations: list[str] = []
+
+
+class LensCritique(BaseModel):
+    severity: Literal["error", "warning", "info"]
+    issue_type: str = Field(description="예: unsupported_claim, missed_tension, weak_focus_coverage")
+    paragraph_id: Optional[str] = Field(default=None, description="근거 문단 ID가 있을 경우")
+    source_quote: str = Field(default="", description="비판 근거가 되는 원문 verbatim quote")
+    critique: str
+    recommendation: str
+
+
+class LensCriticReport(BaseModel):
+    passed: bool
+    risk_level: Literal["low", "medium", "high"]
+    summary: str
+    critiques: list[LensCritique] = []
 
 
 class LensAnalyzer:
@@ -92,7 +110,7 @@ class LensAnalyzer:
         llm_provider,
     ) -> LensAnalysisReport:
         lens_config = load_lens(lens_name, self.lens_dir)
-        annotated, paragraph_map = assign_paragraph_ids(target_document)
+        annotated, _ = assign_paragraph_ids(target_document)
         prompt = (
             "Create a concise source-bound lens analysis.\n"
             "Hard rules:\n"
@@ -107,8 +125,36 @@ class LensAnalyzer:
             f"Document:\n{annotated}"
         )
         report = llm_provider.generate_structured_output(prompt, LensAnalysisReport)
-        self._verify_analysis_grounding(report, paragraph_map)
         return report
+
+    def build_llm_critic(
+        self,
+        target_document: str,
+        lens_name: str,
+        analysis_report: LensAnalysisReport,
+        llm_provider,
+    ) -> LensCriticReport:
+        lens_config = load_lens(lens_name, self.lens_dir)
+        annotated, _ = assign_paragraph_ids(target_document)
+        prompt = (
+            "Red-team the supplied lens analysis against the source document "
+            "and lens instructions.\n"
+            "Hard rules:\n"
+            "- Judge whether the analysis overclaims, misses tensions, ignores "
+            "focus areas, or uses weak support.\n"
+            "- Every critique.source_quote, when present, must be an exact "
+            "substring from the cited [P_XXXX] paragraph.\n"
+            "- Do not introduce outside facts. Critique only against the "
+            "supplied document, lens config, and analysis report.\n"
+            "- Set passed=false if there is any error-severity critique.\n\n"
+            f"Lens ID: {lens_name}\n"
+            f"Lens Name: {lens_config.get('name', lens_name)}\n"
+            f"Focus Areas: {lens_config.get('focus_areas', []) or []}\n"
+            f"Analysis Prompt:\n{lens_config.get('analysis_prompt', '')}\n\n"
+            f"Document:\n{annotated}\n\n"
+            f"Analysis Report:\n{analysis_report.model_dump_json(indent=2)}"
+        )
+        return llm_provider.generate_structured_output(prompt, LensCriticReport)
 
     @staticmethod
     def _verify_analysis_grounding(
@@ -153,6 +199,34 @@ class LensAnalyzer:
             lines.extend(f"- {item}" for item in report.limitations)
         else:
             lines.append("- No limitations returned.")
+        return "\n".join(lines)
+
+    @staticmethod
+    def render_critic(report: LensCriticReport) -> str:
+        lines = [
+            "# Lens LLM Critic",
+            "",
+            f"- **Passed**: `{report.passed}`",
+            f"- **Risk Level**: `{report.risk_level}`",
+            "",
+            "## Summary",
+            report.summary,
+            "",
+            "## Critiques",
+        ]
+        if report.critiques:
+            for idx, critique in enumerate(report.critiques, 1):
+                lines.append(f"### [{idx}] {critique.issue_type} ({critique.severity})")
+                if critique.paragraph_id:
+                    lines.append(f"- Paragraph: `{critique.paragraph_id}`")
+                if critique.source_quote:
+                    lines.append(f"> {critique.source_quote}")
+                lines.append("")
+                lines.append(critique.critique)
+                lines.append("")
+                lines.append(f"Recommendation: {critique.recommendation}")
+        else:
+            lines.append("_No critiques returned._")
         return "\n".join(lines)
 
     def print_brief(self, brief: str) -> None:

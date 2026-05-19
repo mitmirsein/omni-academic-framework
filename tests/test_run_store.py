@@ -166,6 +166,28 @@ def test_report_includes_audit_and_forensic_findings(tmp_path):
     assert "`DEAD_URL`: URL 응답 없음 (`paper[0]`)" in report
 
 
+def test_report_includes_lens_compliance_findings(tmp_path):
+    store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
+    finding = AuditFinding(
+        severity="warning",
+        code="MISSING_FOCUS_COVERAGE",
+        message="렌즈 focus_area가 분석 finding으로 직접 다뤄지지 않음",
+    )
+    store.write_lens_audit(AuditReport(
+        passed=True,
+        score=90,
+        findings=[finding],
+        checked_at="2026-05-19T00:00:00+00:00",
+    ))
+    run_dir = store.finalize()
+    manifest = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert manifest["lens_audit_passed"] is True
+    assert "### Lens Compliance (Gate 3)" in report
+    assert "`MISSING_FOCUS_COVERAGE`" in report
+
+
 def test_report_includes_provenance_artifacts_and_cache(tmp_path):
     store = RunStore.create("q", "cs", mock=False, base=str(tmp_path))
     store.write_digest([

@@ -230,7 +230,15 @@ uv run omni ./paper.md --module analyze --lens theology
 uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-analysis
 ```
 
-이 모드는 `ANTHROPIC_API_KEY`와 `anthropic` optional extra가 필요하다. 결과는 `lens_analysis.json`과 `lens_analysis.md`로 저장된다. 각 finding은 `paragraph_id`와 verbatim `source_quote`를 포함해야 하며, 코드가 source_quote가 해당 문단에 실제 존재하는지 다시 검증한다. `--mock --llm-analysis`는 네트워크 없이 저장 경로와 grounding 검증만 점검하는 테스트 모드다.
+이 모드는 `ANTHROPIC_API_KEY`와 `anthropic` optional extra가 필요하다. 결과는 `lens_analysis.json`과 `lens_analysis.md`로 저장된다. 각 finding은 `paragraph_id`와 verbatim `source_quote`를 포함해야 하며, Gate 3 `LensComplianceAuditor`가 source_quote가 해당 문단에 실제 존재하는지, 렌즈 focus area를 어떻게 다뤘는지, limitations가 기록됐는지 다시 검증한다. Gate 3 결과는 `lens_audit.json`과 manifest의 `lens_audit_passed`에 저장된다. `--mock --llm-analysis`는 네트워크 없이 저장 경로와 grounding 검증만 점검하는 테스트 모드다.
+
+분석 결과에 별도 LLM self-redteaming pass를 붙이려면 `--llm-critic`을 사용한다. 이 옵션은 `--llm-analysis`를 자동 포함한다.
+
+```bash
+uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-critic
+```
+
+critic 결과는 `lens_critic.json`과 `lens_critic.md`로 저장되며, critic 자체의 paragraph/source_quote도 `lens_critic_audit.json`으로 다시 검증된다. manifest에는 `lens_critic_passed`와 `lens_critic_audit_passed`가 기록된다.
 
 ### 검증 산출물 내보내기
 
@@ -340,6 +348,9 @@ runs/
 | `mock` | MockProvider 사용 여부 |
 | `git_commit` | 실행 당시 Git commit |
 | `audit_passed` | AuditGate 통과 여부 |
+| `lens_audit_passed` | `--llm-analysis` 실행 시 Gate 3 LensComplianceAuditor 통과 여부 |
+| `lens_critic_passed` | `--llm-critic` 실행 시 LLM critic 자체의 통과 여부 |
+| `lens_critic_audit_passed` | critic 결과의 paragraph/source_quote grounding 감사 통과 여부 |
 | `status` | 표준 실행 상태. 현재 값: `running`, `completed`, `failed`, `no_papers_found`, `cancelled_by_user`, `invalid_choice`, `scraper_detection_failed`, `scraping_failed`, `analysis_failed`, `unknown` |
 | `recon_cache` | client별 캐시 hit/age 정보 |
 | `artifacts` | 실제 생성된 파일 목록 |
@@ -355,13 +366,15 @@ runs/
 - provenance: run id, 생성 시각, Git commit, run directory
 - artifact index: `digest.json`, `ontology.json`, `audit.json` 등 상대 링크
 - analyze run에서는 `lens_brief.md` 상대 링크
-- `--llm-analysis` 실행 시 `lens_analysis.json`, `lens_analysis.md` 상대 링크
+- `--llm-analysis` 실행 시 `lens_analysis.json`, `lens_analysis.md`, `lens_audit.json` 상대 링크
+- `--llm-critic` 실행 시 `lens_critic.json`, `lens_critic.md`, `lens_critic_audit.json` 상대 링크
 - recon cache provenance: client별 hit/miss와 cache age
 - recon 후보 요약: 저자, venue, citation count, DOI/URL, abstract excerpt
 - ontology node/edge 요약: class, paragraph_id, source_quote excerpt, relation reasoning
 - audit status 및 score
 - audit findings
 - forensic findings
+- lens compliance findings
 - 실패 run의 경우 failure diagnostics: 상태별 가능 원인, 기록된 error message, forensic 차단 수
 
 정밀 재현이나 프로그램 처리에는 `report.md`보다 JSON 파일을 우선 사용한다.
@@ -663,7 +676,9 @@ uv run python -m pytest tests/test_run_store.py
 
 현재 구현 기준 한계:
 
-- LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니라 source-bound briefing scaffold를 출력한다.
+- 기본 LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니라 source-bound briefing scaffold를 출력한다. 실 LLM 분석은 `--llm-analysis`로 명시해야 한다.
+- Gate 3의 기본 감사는 deterministic Lens Compliance MVP다.
+- `--llm-critic`은 critic 결과를 저장하고 감사하지만, critic 결과를 바탕으로 자동 재작성하는 수정 루프는 아직 없다.
 - Google Scholar HTML 파싱은 외부 사이트 구조 변화에 취약하다.
 - KCI adapter는 scaffold이며 XML 경로는 환경에 따라 검증이 필요하다.
 - Audit score 80 미만 자체는 export 차단 조건이 아니다. 차단은 `audit_passed=false` 또는 forensic 실패 기준이다.
