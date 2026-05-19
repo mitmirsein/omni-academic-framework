@@ -48,6 +48,11 @@ class RunStore:
         self._meta = meta
         self._base = base
         self._artifacts: List[str] = []
+        # 리포트 생성을 위한 데이터 수집 버퍼
+        self._papers = []
+        self._ontology = None
+        self._audit = None
+        self._forensic = []
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -82,6 +87,7 @@ class RunStore:
         self._artifacts.append(name)
 
     def write_digest(self, papers: list):
+        self._papers = papers
         self._write_json("digest.json", papers)
 
     def write_fulltext(self, markdown: str):
@@ -95,17 +101,100 @@ class RunStore:
             self._write_json("paragraphs.json", sorted(manifest))
 
     def write_ontology(self, ontology):
+        self._ontology = ontology
         self._write_json("ontology.json", ontology)
 
     def write_audit(self, report):
+        self._audit = report
         self._write_json("audit.json", report)
         self._meta["audit_passed"] = bool(getattr(report, "passed", False))
 
     def write_forensic(self, findings: list):
+        self._forensic = findings
         self._write_json("forensic.json", findings)
+
+    def _generate_markdown_report(self):
+        lines = [
+            "# Omni-Academic Run Report",
+            f"- **Run ID**: `{self._meta['run_id']}`",
+            f"- **Query / Document**: {self._meta['query']}",
+            f"- **Lens**: `{self._meta['lens']}`",
+            f"- **Mock Mode**: {'Yes (Offline Mock)' if self._meta['mock'] else 'No (Live API/LLM)'}",
+            f"- **Created At**: {self._meta['created_at']}",
+            f"- **Git Commit**: `{self._meta.get('git_commit') or 'Unknown'}`",
+            f"- **Audit Passed**: **{str(self._meta.get('audit_passed')).upper()}**",
+            "",
+            "## 🔍 Recon & Papers Summary",
+        ]
+        if self._papers:
+            for idx, p in enumerate(self._papers, 1):
+                p_title = getattr(p, "title", p.get("title") if isinstance(p, dict) else str(p))
+                p_authors = getattr(p, "authors", p.get("authors") if isinstance(p, dict) else [])
+                p_url = getattr(p, "url", p.get("url") if isinstance(p, dict) else "")
+                p_doi = getattr(p, "doi", p.get("doi") if isinstance(p, dict) else "")
+                lines.append(f"### [{idx}] {p_title}")
+                lines.append(f"- **Authors**: {', '.join(p_authors) if p_authors else '저자 미상'}")
+                if p_doi:
+                    lines.append(f"- **DOI**: `{p_doi}`")
+                if p_url:
+                    lines.append(f"- **URL**: {p_url}")
+        else:
+            lines.append("No paper recon data captured in this run.")
+
+        lines.append("\n## 🕸️ Extracting Ontology Map")
+        if self._ontology:
+            nodes = getattr(self._ontology, "nodes", []) or (self._ontology.get("nodes", []) if isinstance(self._ontology, dict) else [])
+            edges = getattr(self._ontology, "edges", []) or (self._ontology.get("edges", []) if isinstance(self._ontology, dict) else [])
+            lines.append(f"Total Nodes: **{len(nodes)}** | Total Edges: **{len(edges)}**\n")
+            
+            lines.append("### Nodes")
+            for n in nodes:
+                n_id = getattr(n, "id", n.get("id") if isinstance(n, dict) else "")
+                n_label = getattr(n, "label", n.get("label") if isinstance(n, dict) else "")
+                n_class = getattr(n, "entity_class", n.get("entity_class") if isinstance(n, dict) else "")
+                n_para = getattr(n, "paragraph_id", n.get("paragraph_id") if isinstance(n, dict) else "")
+                lines.append(f"- `[{n_id}]` **{n_label}** (Class: `{n_class}`, Paragraph: `{n_para}`)")
+
+            lines.append("\n### Edges (Relations)")
+            for e in edges:
+                e_src = getattr(e, "source_id", e.get("source_id") if isinstance(e, dict) else "")
+                e_tgt = getattr(e, "target_id", e.get("target_id") if isinstance(e, dict) else "")
+                e_pred = getattr(e, "predicate", e.get("predicate") if isinstance(e, dict) else "")
+                e_reason = getattr(e, "reasoning", e.get("reasoning", "") if isinstance(e, dict) else "")
+                lines.append(f"- `[{e_src}]` --(`{e_pred}`)--> `[{e_tgt}]` : {e_reason}")
+        else:
+            lines.append("No ontology map generated in this run.")
+
+        lines.append("\n## 🛡️ Audit & Forensics Report")
+        if self._audit:
+            passed = getattr(self._audit, "passed", self._audit.get("passed", False) if isinstance(self._audit, dict) else False)
+            score = getattr(self._audit, "score", self._audit.get("score", 0) if isinstance(self._audit, dict) else 0)
+            logs = getattr(self._audit, "logs", self._audit.get("logs", []) if isinstance(self._audit, dict) else [])
+            lines.append(f"- **Status**: {'✅ PASSED' if passed else '❌ FAILED'}")
+            lines.append(f"- **Audit Score**: `{score}/100`")
+            if logs:
+                lines.append("\n### Audit Logs")
+                for log in logs:
+                    lines.append(f"- {log}")
+        else:
+            lines.append("No audit report was run.")
+
+        if self._forensic:
+            lines.append("\n### Forensics (Gate 2)")
+            for find in self._forensic:
+                f_idx = find.get("index") if isinstance(find, dict) else getattr(find, "index", "")
+                f_title = find.get("title") if isinstance(find, dict) else getattr(find, "title", "")
+                f_status = find.get("status") if isinstance(find, dict) else getattr(find, "status", "")
+                f_err = find.get("error") if isinstance(find, dict) else getattr(find, "error", "")
+                lines.append(f"- Paper `[{f_idx}]` **{f_title}**: Status `{f_status}` {f'({f_err})' if f_err else ''}")
+
+        report_path = self.dir / "report.md"
+        report_path.write_text("\n".join(lines), encoding="utf-8")
+        self._artifacts.append("report.md")
 
     def finalize(self) -> Path:
         """manifest.json 기록 + SQLite 인덱스 등재. 런 디렉터리 경로 반환."""
+        self._generate_markdown_report()
         self._meta["artifacts"] = self._artifacts
         manifest_path = self.dir / "manifest.json"
         manifest_path.write_text(
