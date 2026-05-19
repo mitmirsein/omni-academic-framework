@@ -370,11 +370,12 @@ class OmniSupervisorRouter:
         analyzer.print_brief(brief)
         store.write_lens_brief(brief)
         if llm_analysis:
-            report = analyzer.build_llm_analysis(
-                target_document,
-                lens,
-                _make_provider(self.use_mock),
-            )
+            provider = _make_provider(self.use_mock)
+            report = analyzer.build_llm_analysis(target_document, lens, provider)
+            store.note("llm_usage", {
+                "analysis": provider.last_usage,
+                "analysis_attempts": analyzer.last_attempts,
+            })
             store.write_lens_analysis(report, analyzer.render_analysis(report))
             lens_audit = LensComplianceAuditor().verify(report, target_document, lens)
             store.write_lens_audit(lens_audit)
@@ -393,12 +394,13 @@ class OmniSupervisorRouter:
                     f"(Score: {lens_audit.score}/100)[/bold red]"
                 )
             if llm_critic:
+                critic_provider = _make_provider(self.use_mock)
                 critic = analyzer.build_llm_critic(
-                    target_document,
-                    lens,
-                    report,
-                    _make_provider(self.use_mock),
+                    target_document, lens, report, critic_provider,
                 )
+                usage = store._meta.get("llm_usage") or {}
+                usage["critic"] = critic_provider.last_usage
+                store.note("llm_usage", usage)
                 critic_audit = LensComplianceAuditor().verify_critic(
                     critic, target_document
                 )

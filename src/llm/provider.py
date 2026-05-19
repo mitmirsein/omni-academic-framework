@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -8,6 +9,10 @@ class BaseLLMProvider(ABC):
     모든 LLM 플러그인의 추상 기본 클래스입니다.
     어떤 모델(OpenAI, Anthropic, Gemini 등)을 사용하든 동일한 인터페이스로 Pydantic 스키마를 반환해야 합니다.
     """
+
+    #: 직전 호출의 model/usage 메타데이터 (운용 감사용). 호출 후 갱신된다.
+    last_usage: "Optional[dict]" = None
+
     @abstractmethod
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         pass
@@ -22,6 +27,9 @@ class MockProvider(BaseLLMProvider):
         # → AuditGate(grounding + quote-in-paragraph)를 정상 통과해야
         #   README의 clone-즉시 --mock 경로가 깨지지 않는다.
         import re
+
+        # 운용 감사: mock임을 명시 낙인(실 usage가 아님을 위장 금지).
+        self.last_usage = {"model": "mock", "mock": True, "schema": schema.__name__}
 
         if schema.__name__ == "LensAnalysisReport":
             import ast
@@ -169,6 +177,13 @@ class AnthropicProvider(BaseLLMProvider):
         self._anthropic = anthropic
         self.client = anthropic.Anthropic(api_key=api_key)
         self.model = model or self.DEFAULT_MODEL
+        # 토큰 예산: 운용 환경에서 OMNI_LLM_MAX_TOKENS로 상한 조정 가능.
+        import os
+
+        try:
+            self.max_tokens = max(1024, int(os.environ.get("OMNI_LLM_MAX_TOKENS", "16000")))
+        except ValueError:
+            self.max_tokens = 16000
 
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         tool_name = "emit_structured_output"
@@ -188,7 +203,7 @@ class AnthropicProvider(BaseLLMProvider):
         try:
             response = self.client.messages.create(
                 model=self.model,
-                max_tokens=16000,
+                max_tokens=self.max_tokens,
                 system=[
                     {
                         "type": "text",
@@ -202,6 +217,20 @@ class AnthropicProvider(BaseLLMProvider):
             )
         except self._anthropic.APIError as e:
             raise RuntimeError(f"Anthropic API 호출 실패: {e}") from e
+
+        # 운용 감사: 실제 model + 토큰 usage 기록(매 호출 갱신).
+        usage = getattr(response, "usage", None)
+        self.last_usage = {
+            "model": getattr(response, "model", self.model),
+            "mock": False,
+            "schema": schema.__name__,
+            "max_tokens_budget": self.max_tokens,
+            "stop_reason": getattr(response, "stop_reason", None),
+            "input_tokens": getattr(usage, "input_tokens", None),
+            "output_tokens": getattr(usage, "output_tokens", None),
+            "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
+            "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
+        }
 
         tool_block = next(
             (b for b in response.content if b.type == "tool_use"), None

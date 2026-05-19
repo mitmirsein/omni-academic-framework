@@ -51,6 +51,7 @@ class LensAnalyzer:
     def __init__(self, lens_dir: str = "lenses"):
         self.lens_dir = lens_dir
         self.console = console
+        self.last_attempts: int = 0
 
     @staticmethod
     def _excerpt(text: str, limit: int = 280) -> str:
@@ -108,10 +109,18 @@ class LensAnalyzer:
         target_document: str,
         lens_name: str,
         llm_provider,
+        max_attempts: int = 2,
     ) -> LensAnalysisReport:
+        """source-bound 분석을 생성하고, grounding 위반 시 구체 오류를
+        피드백해 재시도하는 self-correcting 루프(운용화).
+
+        시도 횟수는 `self.last_attempts`에 기록된다. 최대 시도 후에도
+        grounding이 깨지면 마지막 리포트를 반환한다 — 크래시 대신 Gate 3
+        (LensComplianceAuditor)가 결정론적으로 실패를 기록하게 한다.
+        """
         lens_config = load_lens(lens_name, self.lens_dir)
-        annotated, _ = assign_paragraph_ids(target_document)
-        prompt = (
+        annotated, paragraph_map = assign_paragraph_ids(target_document)
+        base_prompt = (
             "Create a concise source-bound lens analysis.\n"
             "Hard rules:\n"
             "- Every finding must cite a real paragraph_id from the supplied [P_XXXX] markers.\n"
@@ -124,7 +133,25 @@ class LensAnalyzer:
             f"Analysis Prompt:\n{lens_config.get('analysis_prompt', '')}\n\n"
             f"Document:\n{annotated}"
         )
-        report = llm_provider.generate_structured_output(prompt, LensAnalysisReport)
+        prompt = base_prompt
+        report = None
+        for attempt in range(1, max(1, max_attempts) + 1):
+            self.last_attempts = attempt
+            report = llm_provider.generate_structured_output(prompt, LensAnalysisReport)
+            try:
+                self._verify_analysis_grounding(report, paragraph_map)
+                return report
+            except ValueError as e:
+                if attempt >= max_attempts:
+                    break
+                prompt = (
+                    f"{base_prompt}\n\n"
+                    "## CORRECTION REQUIRED (previous attempt failed grounding)\n"
+                    f"{e}\n"
+                    "Re-emit the FULL analysis. Every finding.source_quote MUST "
+                    "be an exact verbatim substring of its cited [P_XXXX] "
+                    "paragraph. Drop any finding you cannot ground."
+                )
         return report
 
     def build_llm_critic(

@@ -232,6 +232,8 @@ uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-analys
 
 이 모드는 `ANTHROPIC_API_KEY`와 `anthropic` optional extra가 필요하다. 결과는 `lens_analysis.json`과 `lens_analysis.md`로 저장된다. 각 finding은 `paragraph_id`와 verbatim `source_quote`를 포함해야 하며, Gate 3 `LensComplianceAuditor`가 source_quote가 해당 문단에 실제 존재하는지, 렌즈 focus area를 어떻게 다뤘는지, limitations가 기록됐는지 다시 검증한다. Gate 3 결과는 `lens_audit.json`과 manifest의 `lens_audit_passed`에 저장된다. `--mock --llm-analysis`는 네트워크 없이 저장 경로와 grounding 검증만 점검하는 테스트 모드다.
 
+**운용화(operationalization)**: grounding 위반 시 분석기는 구체 오류(어떤 finding의 어떤 quote가 어느 문단에 없는지)를 프롬프트에 피드백해 자동 재시도한다(기본 2회). 시도 횟수와 실제 model·토큰 usage는 manifest `llm_usage`(`analysis`/`critic`, `analysis_attempts`)에 기록된다 — mock 런은 `{"model":"mock","mock":true}`로 낙인되어 실 usage로 위장될 수 없다. 토큰 상한은 `OMNI_LLM_MAX_TOKENS` 환경변수로 조정한다(기본 16000, 최소 1024). 최대 재시도 후에도 grounding이 깨지면 크래시 대신 마지막 리포트를 반환하고 Gate 3가 결정론적으로 실패를 기록한다.
+
 분석 결과에 별도 LLM self-redteaming pass를 붙이려면 `--llm-critic`을 사용한다. 이 옵션은 `--llm-analysis`를 자동 포함한다.
 
 ```bash
