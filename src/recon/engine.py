@@ -107,11 +107,23 @@ class KCIClient(BaseAPIClient):
 
         return papers
 
+    @staticmethod
+    def _strip_ns(root):
+        """KCI 응답이 네임스페이스를 달고 오면 `.//record` 매칭이 조용히
+        실패한다(실 샘플 미확보 → 정확한 ns 불명). local-name 기준으로
+        태그를 정규화해 변형 내성을 높인다(샘플-독립적 robustness)."""
+        for el in root.iter():
+            if isinstance(el.tag, str) and "}" in el.tag:
+                el.tag = el.tag.rsplit("}", 1)[1]
+        return root
+
     @classmethod
     def _parse(cls, content: bytes) -> List[PaperMetadata]:
         papers = []
         try:
             root = ET.fromstring(content)
+            if root.find('.//record') is None:
+                cls._strip_ns(root)  # 네임스페이스 변형 폴백
             for record in root.findall('.//record'):
                 title = _findtext(record, './/articleInfo/title-group/article-title', {})
                 abstract = _findtext(record, './/articleInfo/abstract-group/abstract', {})

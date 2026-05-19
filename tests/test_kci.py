@@ -51,3 +51,32 @@ def test_kci_parse_handles_invalid_xml():
     # 파싱 불가능한 깨진 XML에 대해 빈 목록을 반환하며 죽지 않는지 검증
     papers = KCIClient._parse(b"<broken><xml>")
     assert papers == []
+
+
+# KCI 실 응답이 네임스페이스를 달고 올 가능성(실 샘플 미확보) 대비 변형 fixture.
+NAMESPACED_KCI_XML = b"""<?xml version="1.0" encoding="UTF-8"?>
+<kci:metadata xmlns:kci="http://www.kci.go.kr/ns">
+  <kci:record>
+    <kci:articleInfo>
+      <kci:title-group><kci:article-title>Namespaced Title</kci:article-title></kci:title-group>
+      <kci:url>https://www.kci.go.kr/article/99999</kci:url>
+    </kci:articleInfo>
+    <kci:author-group><kci:author>Park, Ji-won</kci:author></kci:author-group>
+  </kci:record>
+</kci:metadata>
+"""
+
+# records가 아닌 에러 봉투를 돌려주는 경우(권한/쿼터 등) — graceful empty.
+ERROR_ENVELOPE_XML = b"""<?xml version="1.0"?><error><code>401</code><message>unauthorized</message></error>"""
+
+
+def test_kci_parse_is_namespace_tolerant():
+    papers = KCIClient._parse(NAMESPACED_KCI_XML)
+    assert len(papers) == 1
+    assert papers[0].title == "[KCI] Namespaced Title"
+    assert papers[0].authors == ["Park, Ji-won"]
+    assert papers[0].url == "https://www.kci.go.kr/article/99999"
+
+
+def test_kci_parse_error_envelope_is_graceful_empty():
+    assert KCIClient._parse(ERROR_ENVELOPE_XML) == []
