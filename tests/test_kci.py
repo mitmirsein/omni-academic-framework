@@ -67,3 +67,53 @@ def test_kci_namespace_tolerant():
 
 def test_kci_invalid_xml_is_graceful_empty():
     assert KCIClient._parse(b"<broken><xml>") == []
+
+
+# ✅ 실 lightpanda 렌더 DOM(2026-05 캡처)에서 축약한 검증된 구조 스냅샷.
+# 구조 변화 시 이 테스트가 먼저 실패한다.
+import pytest  # noqa: E402
+
+pytest.importorskip("bs4")
+
+REAL_RENDERED_FRAGMENT = """
+<table class="search-list"><tbody>
+<tr><td class="checkpoint"></td><td>1 .</td><td>
+  <div class="s-state-type-ico">KCI 등재</div>
+  <a href="/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003327481" class="subject"> Healing of Artificial Ulcers </a>
+  <ul class="nopm floats subject-info">
+    <li><a href="/kciportal/po/citationindex/poCretDetail.kci?citationBean.cretId=CRT001665022">임현</a>
+        <a href="https://orcid.org/0000-0001-6581-6420"><i class="fab fa-orcid"></i></a></li>
+    <li><a href="/kciportal/po/search/poInsiSearSoceView.kci?insiGeneInfoBean.insiId=INS000058973">대한소화기암연구학회</a></li>
+    <li><a href="/kciportal/ci/seriesSearch/ciSereInfoView.kci?sereSearBean.sereId=SER01">대한소화기암학회지</a></li>
+  </ul>
+</td></tr>
+<tr><td class="checkpoint"></td><td>2 .</td><td>
+  <a href="/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART000000002" class="subject"> A Theology of Tension </a>
+  <ul class="subject-info">
+    <li><a href="/kciportal/po/citationindex/poCretDetail.kci?citationBean.cretId=CRT2">김민수</a></li>
+    <li><a href="/kciportal/ci/seriesSearch/ciSereInfoView.kci?sereSearBean.sereId=SER02">한국조직신학논총</a></li>
+  </ul>
+</td></tr>
+</tbody></table>
+"""
+
+
+def test_kci_html_snapshot_verified_selectors():
+    papers = KCIClient._parse_html(REAL_RENDERED_FRAGMENT, max_results=5)
+    assert len(papers) == 2
+    p = papers[0]
+    assert p.title == "[KCI] Healing of Artificial Ulcers"
+    assert p.url == "https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003327481"
+    assert p.authors == ["임현"]  # orcid 링크는 제외, poCretDetail만
+    assert p.venue == "대한소화기암연구학회"  # 첫 매칭(institution/series)
+    assert p.abstract.startswith("초록 없음")  # 목록뷰 무초록 — 정직 표기
+    assert papers[1].title == "[KCI] A Theology of Tension"
+    assert papers[1].authors == ["김민수"]
+
+
+def test_kci_html_respects_max_results():
+    assert len(KCIClient._parse_html(REAL_RENDERED_FRAGMENT, max_results=1)) == 1
+
+
+def test_kci_html_empty_is_graceful():
+    assert KCIClient._parse_html("<html><body>no results</body></html>", 5) == []

@@ -93,15 +93,16 @@ class KCIClient(BaseAPIClient):
     추출한다(허위 정밀 주장 금지).
     """
 
+    # 실 렌더 DOM 검증(2026-05, lightpanda): 결과행은 a.subject(제목+상세링크)
+    # + ul.subject-info > li (저자: poCretDetail / 학술지: ciSereInfoView).
+    SEARCH_URL = "https://www.kci.go.kr/kciportal/po/search/poArtiSearList.kci"
+
     async def search(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
         api_key = os.environ.get("KCI_API_KEY", "").strip()
         if not api_key:
-            console.print(
-                "[bold yellow]KCI: KCI_API_KEY 미설정 — KCI Open API는 키가 "
-                "필수입니다(open.kci.go.kr 무료 발급). 정직하게 결과 없음 "
-                "처리하고 진행합니다.[/bold yellow]"
-            )
-            return []
+            # KCI Open API 키는 일반 사용자 비공개 → JS 렌더 웹검색을
+            # headless(Lightpanda)로 우회. 바이너리 없으면 정직하게 빈 결과.
+            return await self._search_via_local_scraper(query, max_results)
 
         params = urllib.parse.urlencode({
             "apiCode": "articleSearch",
@@ -178,6 +179,79 @@ class KCIClient(BaseAPIClient):
                 abstract=_norm(abstract)[:200] or "초록 없음",
                 url=url_link,
             ))
+        return papers
+
+    async def _search_via_local_scraper(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
+        from src.config.tools import resolve_tool
+
+        binary = resolve_tool("OMNI_LIGHTPANDA_BIN", "lightpanda")
+        if not binary or not os.path.exists(binary):
+            console.print(
+                "[bold yellow]KCI: KCI_API_KEY도 OMNI_LIGHTPANDA_BIN도 없어 "
+                "정찰을 건너뜁니다(정직하게 결과 없음).[/bold yellow]"
+            )
+            return []
+
+        url = f"{self.SEARCH_URL}?searchQuery={urllib.parse.quote(query)}"
+        console.print(f"  [italic]KCI Local browser(Lightpanda) 가동... {url}[/italic]")
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                binary, "fetch", "--dump", "html", "--strip-mode", "full",
+                "--wait-ms", "8000", url,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                console.print(
+                    f"[bold red]KCI Lightpanda 실패(exit {proc.returncode}): "
+                    f"{stderr.decode(errors='ignore')[:200]}[/bold red]"
+                )
+                return []
+            return self._parse_html(stdout.decode("utf-8", errors="ignore"), max_results)
+        except Exception as e:
+            console.print(f"[bold red]KCI Lightpanda 구동 오류: {e}[/bold red]")
+            return []
+
+    @classmethod
+    def _parse_html(cls, html: str, max_results: int = 3) -> List[PaperMetadata]:
+        """KCI 웹검색 렌더 DOM 파서. 셀렉터는 실 lightpanda 렌더 결과를
+        직접 캡처해 검증(2026-05)했고 test_kci.py가 실 fragment로 스냅샷
+        고정한다. 목록뷰엔 초록이 없다 → 정직하게 미제공 표기."""
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(html, "html.parser")
+        papers: List[PaperMetadata] = []
+        for a in soup.select("a.subject"):
+            title = _norm(a.get_text())
+            if not title:
+                continue
+            href = a.get("href") or ""
+            url_link = ("https://www.kci.go.kr" + href) if href.startswith("/") else (href or None)
+
+            authors, venue = [], None
+            td = a.find_parent("td")
+            info = td.select_one("ul.subject-info") if td else None
+            if info:
+                for li in info.select("li"):
+                    link = li.find("a")
+                    if not link:
+                        continue
+                    h = link.get("href") or ""
+                    text = _norm(link.get_text())
+                    if "poCretDetail" in h and text:
+                        authors.append(text)
+                    elif venue is None and ("ciSereInfoView" in h or "poInsiSearSoceView" in h) and text:
+                        venue = text
+
+            papers.append(PaperMetadata(
+                title=f"[KCI] {title}",
+                authors=authors or ["저자 미상"],
+                abstract="초록 없음 (KCI 목록 미제공 — 본문은 Phase B)",
+                url=url_link,
+                venue=venue,
+            ))
+            if len(papers) >= max_results:
+                break
         return papers
 
 class CrossrefClient(BaseAPIClient):
