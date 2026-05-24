@@ -1,0 +1,47 @@
+{
+  "title": "Planning Under Uncertainty",
+  "thesis": "Good planning separates prediction from preparation while preserving uncertainty.",
+  "sections": [
+    {
+      "section_type": "introduction",
+      "heading": "Introduction",
+      "body": "Planning under uncertainty begins by distinguishing prediction from preparation [C1].",
+      "claim_ids": ["C1"]
+    },
+    {
+      "section_type": "methodology",
+      "heading": "Method",
+      "body": "Scenario comparison gives a repeatable method for evaluating alternatives [C2].",
+      "claim_ids": ["C2"]
+    },
+    {
+      "section_type": "discussion",
+      "heading": "Discussion",
+      "body": "The method structures response, but it does not remove uncertainty [C3].",
+      "claim_ids": ["C3"]
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "C1",
+      "paragraph_id": "P_0001",
+      "source_quote": "distinction between prediction and preparation",
+      "node_id": "n1"
+    },
+    {
+      "claim_id": "C2",
+      "paragraph_id": "P_0002",
+      "source_quote": "Scenario comparison is useful",
+      "node_id": "n2"
+    },
+    {
+      "claim_id": "C3",
+      "paragraph_id": "P_0003",
+      "source_quote": "does not remove uncertainty",
+      "node_id": "n3"
+    }
+  ],
+  "open_tensions": [
+    "Scenario comparison structures response without eliminating uncertainty."
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "recorded_at": "2026-05-24T00:00:00Z",
+  "stage": "peer_review_grounding",
+  "error_message": "Peer review grounding failed after 2 attempt(s): absent quote",
+  "review_attempts": 2
+}

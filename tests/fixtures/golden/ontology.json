@@ -1,0 +1,41 @@
+{
+  "nodes": [
+    {
+      "id": "n1",
+      "label": "Prediction and preparation",
+      "entity_class": "Concept",
+      "paragraph_id": "P_0001",
+      "source_quote": "distinction between prediction and preparation"
+    },
+    {
+      "id": "n2",
+      "label": "Scenario comparison",
+      "entity_class": "Method",
+      "paragraph_id": "P_0002",
+      "source_quote": "Scenario comparison is useful"
+    },
+    {
+      "id": "n3",
+      "label": "Residual uncertainty",
+      "entity_class": "Limitation/Gap",
+      "paragraph_id": "P_0003",
+      "source_quote": "does not remove uncertainty"
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "n1",
+      "target_id": "n2",
+      "predicate": "builds_on",
+      "reasoning": "Scenario comparison operationalizes preparation under uncertainty.",
+      "source_quote": "Scenario comparison is useful"
+    },
+    {
+      "source_id": "n2",
+      "target_id": "n3",
+      "predicate": "addresses",
+      "reasoning": "The method structures response without eliminating uncertainty.",
+      "source_quote": "does not remove uncertainty"
+    }
+  ]
+}

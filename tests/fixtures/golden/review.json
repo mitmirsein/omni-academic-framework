@@ -1,0 +1,31 @@
+{
+  "reviews": [
+    {
+      "panelist": "Ella",
+      "score": 90,
+      "feedback": "The thesis is clear and conceptually constrained by the source.",
+      "source_quotes": ["Planning Under Uncertainty", "distinction between prediction and preparation"]
+    },
+    {
+      "panelist": "Miranda",
+      "score": 88,
+      "feedback": "The argument moves cleanly from concept to method to limitation.",
+      "source_quotes": ["Scenario comparison gives a repeatable method"]
+    },
+    {
+      "panelist": "Methodologist",
+      "score": 92,
+      "feedback": "The claims ledger provides sufficient source grounding.",
+      "source_quotes": ["Scenario comparison is useful"]
+    },
+    {
+      "panelist": "Devil's Advocate",
+      "score": 84,
+      "feedback": "The unresolved limitation is preserved rather than hidden.",
+      "source_quotes": ["does not remove uncertainty"]
+    }
+  ],
+  "editor_decision": "Accept",
+  "editor_summary": "The draft is source-grounded and keeps the central limitation visible.",
+  "final_score": 89
+}

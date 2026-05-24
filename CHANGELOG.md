@@ -9,6 +9,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 ### Added
 
 - Added `SCHEMAS.md` to document artifact contracts for downstream consumers.
+- Added golden fixture tests for ontology, audit, draft, review, failure, manifest, and status contracts.
 
 ## [0.6.0] - 2026-05-24
 

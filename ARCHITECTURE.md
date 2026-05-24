@@ -216,6 +216,7 @@ Tests prefer deterministic mock providers and scripted failure cases. Important 
 - peer review grounding failure cannot produce a passed review artifact
 - direct relative run paths such as `runs/<slug>/<timestamp>` resolve correctly
 - run artifact manifests detect tampering
+- golden fixture JSON artifacts still satisfy the documented schema contracts
 
 Run:
 

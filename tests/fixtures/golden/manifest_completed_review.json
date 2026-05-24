@@ -1,0 +1,37 @@
+{
+  "run_id": "planning-under-uncertainty/MOCK-20260524T000000Z",
+  "created_at": "2026-05-24T00:00:00+00:00",
+  "query": "Planning under uncertainty",
+  "lens": "general",
+  "mock": true,
+  "git_commit": "abcdef0",
+  "status": "completed",
+  "audit_passed": true,
+  "draft_passed": true,
+  "review_grounding_passed": true,
+  "review_passed": true,
+  "review_score": 89,
+  "artifacts": [
+    "paragraphs.json",
+    "ontology.json",
+    "audit.json",
+    "draft.json",
+    "draft.md",
+    "draft_audit.json",
+    "review.json",
+    "review.md",
+    "report.md"
+  ],
+  "artifact_manifest": {
+    "paragraphs.json": {
+      "exists": true,
+      "bytes": 312,
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    "review.json": {
+      "exists": true,
+      "bytes": 1024,
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111"
+    }
+  }
+}
