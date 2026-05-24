@@ -28,5 +28,5 @@ type: "core_skill"
 - 도구 사용: `uses_method` (방법론 차용)
 
 # 4. 출력 규격 및 감사 (Output Envelope & Audit)
-- 추출된 지식망은 후속 모듈(`Translator` 등)이 맵으로 파싱할 수 있도록 **엄격한 JSON 그래프 구조**로 반환되어야 합니다.
+- 추출된 지식망은 후속 모듈이 맵으로 파싱할 수 있도록 **엄격한 JSON 그래프 구조**로 반환되어야 합니다.
 - **[Audit Gate]**: 추출된 모든 노드(Node)는 원문에서 자신이 기원한 **`¶ 문단 ID`와 반드시 매핑(Binding)**되어야 합니다. 출처 ID가 없는 허구의 노드(Hallucination)가 생성되면 무결성 감사에서 즉각 폐기(Fail)됩니다.

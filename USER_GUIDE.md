@@ -1,6 +1,6 @@
 # Omni-Academic Framework 사용자 가이드
 
-이 문서는 `omni-academic-framework`를 실제로 운용하기 위한 상세 매뉴얼이다. 프레임워크의 목적은 학술 질의나 원문 텍스트를 정찰하고, 필요한 경우 원문을 징발한 뒤, 문단 근거에 고정된 온톨로지 맵을 생성하고, 감사 결과가 통과한 산출물만 로컬 지식 저장소로 내보내는 것이다.
+이 문서는 `omni-academic-framework`를 실제로 운용하기 위한 상세 매뉴얼이다. 프레임워크의 목적은 학술 질의나 원문 텍스트를 정찰하고, 필요한 경우 원문을 징발한 뒤, 문단 근거에 고정된 온톨로지 맵을 생성하고, 감사 결과가 통과한 검증 산출물을 `runs/` 아래 typed JSON으로 영속화하는 것이다.
 
 현재 상태는 프로토타입 v0.6.0이다. 모든 기능이 완전 자동 연구 에이전트로 닫혀 있는 것은 아니며, HITL 승인, 외부 API 가용성, LLM provider 설정, 원문 접근 가능성에 따라 생성되는 산출물이 달라진다. 이 문서는 구현된 동작을 기준으로 작성한다.
 
@@ -14,7 +14,7 @@
 uv run omni --status
 ```
 
-진단 화면에서 API 키, 외부 도구, 로컬 저장소 경로, Git commit 정보를 확인한다. 최초 설정을 대화형으로 진행하려면 다음 명령을 사용한다.
+진단 화면에서 API 키, 외부 도구, Git commit 정보를 확인한다. 최초 설정을 대화형으로 진행하려면 다음 명령을 사용한다.
 
 ```bash
 uv run omni --setup
@@ -112,7 +112,6 @@ uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/sch
 | `JINA_API_KEY` | Jina Reader 사용 시 인증 | 선택 |
 | `OMNI_LIGHTPANDA_BIN` | Lightpanda 실행 파일 경로 | JS/Scholar 로컬 스크래핑 시 필요 |
 | `OMNI_PDF_EXTRACTOR` | 외부 PDF 텍스트 추출기 | 선택 |
-| `ACADEMIC_VAULT_PATH` | 검증 산출물 export 대상 로컬 지식 저장소 루트 | export 사용 시 필요 |
 
 경로 규칙은 일관되게 `OMNI_*` 환경변수 우선, 없으면 `PATH` 탐색, 그래도 없으면 해당 기능만 정직하게 실패하는 방식이다.
 
@@ -130,7 +129,6 @@ uv run omni --status
 
 - API key 설정 여부
 - Lightpanda/pdftotext 탐지 여부
-- 로컬 지식 저장소 경로 유효성
 - 현재 Git commit
 - 빠른 시작 명령 안내
 
@@ -250,22 +248,6 @@ uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-critic
 ```
 
 critic 결과는 `lens_critic.json`과 `lens_critic.md`로 저장되며, critic 자체의 paragraph/source_quote도 `lens_critic_audit.json`으로 다시 검증된다. manifest에는 `lens_critic_passed`와 `lens_critic_audit_passed`가 기록된다.
-
-### 검증 산출물 내보내기
-
-```bash
-uv run omni ./paper.md --module ontology --lens general --export-vault --vault-path /path/to/knowledge-store
-```
-
-내보내기 조건:
-
-- mock run이 아니어야 한다.
-- `audit_passed`가 true여야 한다.
-- `forensic_passed`가 false이면 거부된다.
-- `artifact_manifest` 기준 무결성 검증이 통과해야 한다. export 직전에 artifact 파일의 존재 여부, byte size, sha256을 다시 계산하므로 run 저장 후 파일이 변조되면 내보내기가 거부된다.
-- 저장소 루트가 실제 디렉터리여야 한다.
-
-현재 export 경로는 로컬 저장소 루트 아래 `000 System/Inbox/Drafts/`다. 이 경로가 없으면 생성한다.
 
 ---
 
@@ -522,48 +504,7 @@ uv run python src/store/query_db.py --db runs/index.db --failed
 
 ---
 
-## 10. 로컬 지식 저장소 Export
-
-Export는 opt-in이다. `--export-vault`를 명시해야 한다.
-
-```bash
-uv run omni ./paper.md --module ontology --lens general --export-vault --vault-path /path/to/knowledge-store
-```
-
-또는 `.env`에 기본 경로를 둔다.
-
-```env
-ACADEMIC_VAULT_PATH=/path/to/knowledge-store
-```
-
-그 뒤:
-
-```bash
-uv run omni ./paper.md --module ontology --lens general --export-vault
-```
-
-차단 조건:
-
-- 경로 미지정
-- 경로가 실제 디렉터리가 아님
-- mock run
-- audit 미통과
-- forensic 실패가 manifest에 기록됨
-
-export 파일명은 `run_id`의 `/`를 `__`로 치환해 파일 경로 충돌을 피한다.
-
-export draft에는 다음 요약이 포함된다.
-
-- run metadata
-- ontology node/edge 상위 20개
-- audit finding 상위 20개
-- 원본 artifact 경로(`report.md`, `manifest.json`, `ontology.json`, `audit.json`)
-
-완전한 원천 데이터는 export draft가 아니라 `runs/<query>/<timestamp>/`의 JSON artifact를 기준으로 확인한다.
-
----
-
-## 11. 유지관리와 정리
+## 10. 유지관리와 정리
 
 GitHub에 올리면 안 되는 로컬 자료는 `.gitignore`에 등록되어 있다.
 
@@ -599,7 +540,7 @@ GitHub에 올리면 안 되는 로컬 자료는 `.gitignore`에 등록되어 있
 
 ---
 
-## 12. 문제 해결
+## 11. 문제 해결
 
 ### `검색된 논문이 없습니다`
 
@@ -651,22 +592,6 @@ uv run omni ./paper.md --module ontology --mock
 uv run --extra llm omni ./paper.md --module ontology
 ```
 
-### export가 거부됨
-
-가능한 원인:
-
-- mock run
-- audit 실패
-- forensic 실패
-- 로컬 저장소 경로 미설정
-
-대응:
-
-```bash
-uv run omni --status
-uv run python src/store/query_db.py "SELECT run_id, audit_passed, dir FROM runs ORDER BY created_at DESC"
-```
-
 ### 테스트가 실패함
 
 전체 테스트:
@@ -683,7 +608,7 @@ uv run python -m pytest tests/test_run_store.py
 
 ---
 
-## 13. 현재 한계
+## 12. 현재 한계
 
 현재 구현 기준 한계:
 
@@ -697,17 +622,15 @@ uv run python -m pytest tests/test_run_store.py
   - **Open API(키 보유 시)**: `KCI_API_KEY` 설정 시 실 `<MetaData>` 구조 검증, 키 누락 시 `resultMsg` 에러봉투 정직 처리.
   - **httpx POST 웹검색(키워드)**: 키 없으면 실검증된 POST 계약(`poSearchBean.conditionList=KEYALL` + `poSearchBean.keywordList`)으로 직접 호출 — 서버 렌더라 Lightpanda 불필요. GET은 KCI가 무시하고 인기 논문(예: 췌장암/담도암)을 반환하는 버그라 폐기. 응답에 검색어 미반영 시 오염 차단으로 0건 처리. 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 렌더 DOM 캡처로 검증·스냅샷 고정.
   - **OAI `GetRecord` 보강 브리지**: 웹 후보의 artiId로 OAI-PMH `GetRecord`(표준 verb)를 best-effort 호출해 초록·DOI 등을 보강. 차단·실패 시 웹 필드 유지(graceful, 무날조). `OMNI_KCI_OAI_ENRICH=0`으로 비활성. 이전 GET 버그로 오염된 캐시는 `ReconCache.SCHEMA_VER` 버전 상승으로 자동 무효화(또는 `.cache/recon.sqlite` 삭제).
-- Audit score 80 미만 자체는 export 차단 조건이 아니다. 차단은 `audit_passed=false` 또는 forensic 실패 기준이다.
 - `runs/`와 `.cache/`는 로컬 산출물이며 GitHub에 올리지 않는다.
 
 ---
 
-## 14. 권장 운영 루틴
+## 13. 권장 운영 루틴
 
 1. `uv run omni --status`로 환경을 확인한다.
 2. `uv run omni "query" --lens <lens> --forensic`으로 후보를 정찰한다.
 3. HITL에서 딥다이브할 후보를 고른다.
 4. 원문 징발과 ontology/audit 결과를 `runs/<query>/latest/report.md`에서 확인한다.
 5. JSON 원천 파일이 필요하면 `digest.json`, `ontology.json`, `audit.json`, `manifest.json`을 확인한다.
-6. 로컬 저장소로 승격할 경우 mock이 아닌 실 run에서 `--export-vault`를 사용한다.
-7. 변경 후 `uv run python -m pytest`로 회귀를 확인한다.
+6. 변경 후 `uv run python -m pytest`로 회귀를 확인한다.

@@ -46,7 +46,6 @@ def run_setup_wizard():
         ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
         ("SERPAPI_API_KEY", "SerpAPI API Key (구글 스콜라 키워드 검색용 - 선택)", "https://serpapi.com/"),
         ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
-        ("ACADEMIC_VAULT_PATH", "로컬 지식 저장소 절대 경로 (예: /path/to/knowledge-store)", "검증 산출물 export용 절대 경로"),
         ("OMNI_LIGHTPANDA_BIN", "Lightpanda Headless Browser 실행 파일 경로 (생략 가능)", "로컬 바이너리 경로"),
         ("OMNI_PDF_EXTRACTOR", "PDF 텍스트 추출기 pdftotext 경로 (생략 가능)", "로컬 바이너리 경로")
     ]
@@ -144,19 +143,6 @@ def run_diagnostics():
     # External Tools
     lightpanda_bin = resolve_tool("OMNI_LIGHTPANDA_BIN", "lightpanda")
     pdf_extractor_bin = resolve_tool("OMNI_PDF_EXTRACTOR", "pdftotext")
-    
-    # Local knowledge-store path
-    vault_path_env = os.environ.get("ACADEMIC_VAULT_PATH", "").strip()
-    vault_status = "Not Set"
-    vault_color = "yellow"
-    if vault_path_env:
-        v_path = Path(vault_path_env)
-        if v_path.is_dir():
-            vault_status = f"Valid ({v_path.name})"
-            vault_color = "green"
-        else:
-            vault_status = "Directory Not Found"
-            vault_color = "red"
 
     # Git Status
     import subprocess
@@ -227,14 +213,6 @@ def run_diagnostics():
         "pdftotext (PDF Parser)",
         f"[green]Detected: {pdf_extractor_bin}[/green]" if pdf_extractor_bin else "[green]Using pypdf (Internal)[/green]",
         "미설정 시 내장 pypdf 파서를 가동하여 텍스트 파싱 처리"
-    )
-
-    # Local knowledge store
-    table.add_row(
-        "Workspace",
-        "ACADEMIC_VAULT_PATH",
-        f"[{vault_color}]{vault_status}[/{vault_color}]",
-        f"로컬 저장소 경로: {vault_path_env or 'Unset'}"
     )
 
     # Git

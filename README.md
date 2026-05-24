@@ -21,7 +21,7 @@ status: Draft/V3-Palantir
 >   - **Audit Gates**: Ontology Paragraph-ID 부여 + AuditGate paragraph grounding(환각 차단); Gate 2 ForensicAuditor(DOI 문법+실존 ping·URL liveness·유령 인용 차단); Gate 3 LensComplianceAuditor MVP(렌즈 분석의 paragraph/source_quote/focus coverage 감사); 선택형 LLM self-redteaming critic(`--llm-critic`, `lens_critic.json/md`).
 >   - **LLM 분석**: 실 AnthropicProvider(강제 tool-use+prompt caching); 선택형 source-bound Lens Analysis(`--llm-analysis`, `lens_analysis.json/md`, `lens_audit.json`, source_quote 재검증) — 운용화: grounding 위반 시 구체 오류 피드백 self-correcting 재시도 루프, `OMNI_LLM_MAX_TOKENS` 토큰 예산, 실 model/usage·재시도 횟수를 manifest `llm_usage`에 기록(mock은 낙인되어 실 usage 위장 불가); source-bound Lens Brief(`lens_brief.md`).
 >   - **스크래퍼**: LightpandaScraper(바이너리 subprocess — `OMNI_LIGHTPANDA_BIN` env/PATH, 하드코딩 제거, 미설정 시 정직하게 빈 문자열); PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` override·실패 시 정직); 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""); HITL→Scraper→Ontology→Audit E2E.
->   - **영속화·모드**: RunStore(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` 무결성 검증; `--export-vault`로 audit통과·non-mock 산출물을 `ACADEMIC_VAULT_PATH` Inbox/Drafts로 옵트인 export); ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest 적중 기록); Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드).
+>   - **영속화·모드**: RunStore(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` 무결성 검증); ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest 적중 기록); Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드).
 >   - **운영·품질**: 시스템 진단 & 자동 셋업 대시보드(`--status`/쿼리 생략 시 `.env` 자동 생성·API 키/도구 유효성 UI); CI 품질 게이트(GitHub Actions: `ruff check`[E9/F/I] + 오프라인 pytest + byte-compile, `skills/`는 legacy 제외, scholar-browser extra로 Scholar 파서 snapshot까지 게이트); 실패 진단 artifact(`failure.json`: stage/scraper/HTTP status/content-type/raw excerpt, report.md 링크); Google Scholar 파서 snapshot 회귀 가드.
 > - **`[BLUEPRINT]` (미구현)**: Gate 3 critic 결과 기반 자동 수정 루프.
 > - **`[LEGACY]` (격리·정직 실패)**: `skills/google-scholar-semantic`의 stealth 브라우저 러너는 repo 미포함 외부 모듈 `agents.stealth_browser`에 의존 → 호출 시 raw 크래시가 아니라 명확한 `[LEGACY]` 메시지로 실패. 번들 지원 경로는 `SerpApiScholarClient`(+Lightpanda fallback). 외부 툴(Lightpanda/PDF 추출기)은 `OMNI_LIGHTPANDA_BIN`·`OMNI_PDF_EXTRACTOR` env로 주입(미설정 시 해당 경로만 비활성, 정직 실패).
@@ -38,7 +38,7 @@ status: Draft/V3-Palantir
 ### 🧩 독립적 모듈 풀 (Tool Pool)
 1. **`Recon Engine`**: 무겁게 원문을 다 파싱하지 않고, 가볍게 API와 메타데이터만 긁어와 다이제스트를 보고합니다. (가장 가벼운 정찰)
 2. **`Ontology Extractor`**: 전체 분석이 부담스러울 때, 원문에서 핵심 뼈대인 지식망(Entity-Relation) 지형도만 JSON으로 빠르게 뽑아냅니다.
-3. **`Lens Analyzers` (`Epistemic`, `Translator` 등)**: 온톨로지 맵과 원문을 동시에 넘겨받아(의미 탈락 방지), 사용자가 지목한 특정 지점만 정밀 타격합니다.
+3. **`Lens Analyzers` (`Epistemic` 등)**: 온톨로지 맵과 원문을 동시에 넘겨받아(의미 탈락 방지), 사용자가 지목한 특정 지점만 정밀 타격합니다.
 
 ### 🌊 부드러운 점진적 워크플로우 (Soft & Progressive)
 - **Simple is Best**: 사용자가 "이 저널 이번 호 동향만 브리핑해"라고 하면 가볍게 Recon만 하고 멈춥니다. 
@@ -65,7 +65,7 @@ status: Draft/V3-Palantir
 - [x] **Step 1: Supervisor & Ontology 코어 구축**
   - 메인 진입점 프롬프트 설계 및 `Ontology Extractor` 선행 가동 구조 확립.
 - [x] **Step 2: Sub-Nodes의 도구화 (Tooling) 및 다중 클라이언트 연동**
-  - 기존 번역/분석기 해체 후 호출 가능한 Tool 규격으로 재조립 및 Google Scholar, Semantic Scholar 등 다중 클라이언트 연동 완료.
+  - 기존 분석기 해체 후 호출 가능한 Tool 규격으로 재조립 및 Google Scholar, Semantic Scholar 등 다중 클라이언트 연동 완료.
 - [x] **Step 3: Domain Lenses 세팅**
   - `lenses/` 디렉토리에 CS, MED, THEO 등 도메인별 렌즈(스키마) 파일 구축.
 - [x] **Step 4: 통합 스트레스 테스트 (엔드투엔드)**
@@ -88,7 +88,6 @@ status: Draft/V3-Palantir
 | **`SEMANTIC_SCHOLAR_API_KEY`** | Semantic Scholar 기반 고속 학술 문헌 탐색 및 인용망 리스트 조회 | 선택 (미지정 시 3초당 1회 제한) | [Semantic Scholar API](https://www.semanticscholar.org/product/api) |
 | **`SERPAPI_API_KEY`** | SerpAPI 기반 Google Scholar 키워드 문헌 탐색 | 선택 (미지정 시 구글 스콜라 쿼리 비활성화) | [SerpAPI](https://serpapi.com/) |
 | **`JINA_API_KEY`** | 웹 페이지나 PDF 원문 URL에서 마크다운 형태 본문 추출 | 선택 (미지정 시 Fallback 사용) | [Jina Reader API](https://jina.ai/reader/) |
-| **`ACADEMIC_VAULT_PATH`** | 로컬 지식 저장소 루트 절대 경로 (예: `/path/to/knowledge-vault`) | 선택 (검증 산출물 내보내기용) | 사용자가 지정한 로컬 저장소 루트 경로 |
 
 ---
 *Omni-Academic Framework | Portable Local Research Standard*

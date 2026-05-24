@@ -14,7 +14,7 @@ except ImportError:
 from pydantic import BaseModel
 from rich.console import Console
 
-from src.store.run_store import RunStore, export_to_vault, verify_artifact_manifest
+from src.store.run_store import RunStore, verify_artifact_manifest
 from src.supervisor import run_status
 
 console = Console()
@@ -32,8 +32,6 @@ class RouterRequest(BaseModel):
     target_module: ModuleType
     use_mock: bool = False
     forensic: bool = False
-    export_vault: bool = False
-    vault_path: str = ""
     no_cache: bool = False
     snowball: str = ""
     kci_harvest: str = ""
@@ -235,15 +233,6 @@ class OmniSupervisorRouter:
         finally:
             run_dir = store.finalize()
             self.console.print(f"\n[bold]💾 산출물 저장:[/bold] {run_dir}")
-
-        if request.export_vault:
-            try:
-                out = export_to_vault(
-                    store, request.vault_path, ontology=self._last_ontology
-                )
-                self.console.print(f"[bold green]📤 로컬 저장소 export:[/bold green] {out}")
-            except ValueError as e:
-                self.console.print(f"[bold yellow]로컬 저장소 export 생략: {e}[/bold yellow]")
 
     async def _run_recon(self, store: RunStore, query: str, lens: str,
                           forensic: bool = False, no_cache: bool = False,
@@ -486,14 +475,6 @@ def main():
         help="recon 결과에 Gate 2 ForensicAuditor(DOI/URL 실존 ping) 적용",
     )
     parser.add_argument(
-        "--export-vault", action="store_true",
-        help="audit 통과·non-mock 산출물을 로컬 지식 저장소 Inbox/Drafts에 Markdown draft로 export",
-    )
-    parser.add_argument(
-        "--vault-path", type=str, default=os.environ.get("ACADEMIC_VAULT_PATH", ""),
-        help="로컬 지식 저장소 루트 경로 (미지정 시 ACADEMIC_VAULT_PATH 환경변수). 추측하지 않음",
-    )
-    parser.add_argument(
         "--no-cache", action="store_true",
         help="ReconCache 바이패스(항상 fresh 호출). 캐시 적중은 manifest에 기록됨",
     )
@@ -570,8 +551,6 @@ def main():
         target_module=ModuleType(args.module),
         use_mock=args.mock,
         forensic=args.forensic,
-        export_vault=args.export_vault,
-        vault_path=args.vault_path,
         no_cache=args.no_cache,
         snowball=args.snowball,
         kci_harvest=args.kci_harvest,

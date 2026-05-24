@@ -4,9 +4,9 @@ description: "범용 학술 연구 및 논문 서베이 에이전트 가동 (omn
 
 # 🌐 Agent Action Spec: `/omni-research` (Mosaic v2.0)
 
-1. **[QUERY EXPANSION]**: 입력된 한국어 주제를 바탕으로 학술적 영어(EN) 및 독일어(DE) 전문 용어 세트를 생성한다. (Omni-Translator 로직 활용)
+1. **[QUERY EXPANSION]**: 입력된 한국어 주제를 바탕으로 학술적 영어(EN) 및 독일어(DE) 전문 용어 세트를 생성한다.
 2. **[QUAD-ENGINE SEARCH]**: 다음 4대 엔진을 동시 가동하여 자료를 수집한다.
-    - **KCI/RISS**: `kci-riss-mcp` (Lightpanda/InsaneRecon) 기반 하이브리드 탐찰.
+    - **KCI/RISS**: `skills/kci-searcher/scripts/search.py` 및 `skills/riss-searcher/scripts/search.py` 기반 국내 학술 DB 탐색.
     - **Google Scholar**: `search_web` 및 `google-scholar-quick`을 통한 상위 인용 논문 발굴.
     - **Google Scholar Semantic**: `skills/google-scholar-semantic/scripts/scholar_runner.py`를 통한 **Google Scholar Labs (AI-assisted) 시맨틱 정찰**.
     - **Semantic Scholar**: `skills/semantic-scholar/scripts/s2_runner.py`를 통한 **API 기반 정밀 메타데이터** 확보.

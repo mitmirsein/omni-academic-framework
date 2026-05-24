@@ -27,4 +27,4 @@ type: "orchestrator_skill"
 
 ## Phase D: 렌즈 맞춤형 정밀 타격 (Lens-Specific Analysis)
 1. 구축된 지식망(Ontology Map)을 들고, 렌즈 파일(`lens-*.md`)에 정의된 후속 모듈을 호출합니다.
-2. 필요시 `Epistemic Analyzer`로 논증을 해체하거나, `Academic Translator`로 번역을 수행합니다. 모든 모듈은 3중 Audit Gate를 통과해야 합니다.
+2. 필요시 `Epistemic Analyzer`로 논증을 해체합니다. 모든 모듈은 3중 Audit Gate를 통과해야 합니다.
