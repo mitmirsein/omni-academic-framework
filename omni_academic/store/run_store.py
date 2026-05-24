@@ -157,6 +157,7 @@ class RunStore:
         self._lens_audit = None
         self._lens_critic_audit = None
         self._draft_audit = None
+        self._review = None
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -253,6 +254,14 @@ class RunStore:
         self._draft_audit = report
         self._write_json("draft_audit.json", report)
         self._meta["draft_passed"] = bool(getattr(report, "passed", False))
+
+    def write_review(self, report, markdown: str):
+        self._review = report
+        self._write_json("review.json", report)
+        (self.dir / "review.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("review.md")
+        self._meta["review_passed"] = bool(_field(report, "editor_decision", "Reject") in ("Accept", "Major Revision"))
+        self._meta["review_score"] = int(_field(report, "final_score", 0))
 
     def write_lens_analysis(self, report, markdown: str):
         self._write_json("lens_analysis.json", report)
@@ -445,6 +454,22 @@ class RunStore:
                     lines.append(_finding_line(finding))
             else:
                 lines.append("- No draft compliance findings.")
+
+        if self._review:
+            decision = _field(self._review, "editor_decision", "Reject")
+            score = _field(self._review, "final_score", 0)
+            summary = _field(self._review, "editor_summary", "")
+            lines.append("\n### Peer Review Panel")
+            lines.append(f"- **Verdict**: `{decision}`")
+            lines.append(f"- **Score**: `{score}/100`")
+            if summary:
+                lines.append(f"- **Summary Synthesis**:\n  {_truncate(summary, 250)}")
+            reviews = _field(self._review, "reviews", []) or []
+            if reviews:
+                for rev in reviews:
+                    rev_name = _field(rev, "panelist", "")
+                    rev_score = _field(rev, "score", 0)
+                    lines.append(f"  - **{rev_name}**: `{rev_score}/100`")
 
         report_path = self.dir / "report.md"
         report_path.write_text("\n".join(lines), encoding="utf-8")

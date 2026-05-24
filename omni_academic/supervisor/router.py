@@ -25,6 +25,7 @@ class ModuleType(str, Enum):
     ONTOLOGY = "ontology"
     ANALYZE = "analyze"
     DRAFT = "draft"
+    REVIEW = "review"
 
 
 class RouterRequest(BaseModel):
@@ -247,6 +248,8 @@ class OmniSupervisorRouter:
                 )
             elif request.target_module == ModuleType.DRAFT:
                 self._run_draft(store, _resolve_document(request.query), request.lens)
+            elif request.target_module == ModuleType.REVIEW:
+                self._run_review(store, request.query, request.lens)
             if store._meta.get("status") == run_status.RUNNING:
                 store.note("status", run_status.COMPLETED)
         except Exception as e:
@@ -540,6 +543,51 @@ class OmniSupervisorRouter:
                 f"(Score: {draft_audit.score}/100)[/bold red]"
             )
 
+    def _run_review(self, store: RunStore, ref: str, lens: str):
+        from omni_academic.analyze.peer_review import PeerReviewPanel
+        from omni_academic.draft.scribe import DraftReport
+
+        self.console.print(
+            f"\n[bold magenta]👥 [Peer Review Panel] (렌즈: {lens})[/bold magenta]"
+        )
+
+        try:
+            run_dir = _resolve_run_dir(ref)
+            draft_path = run_dir / "draft.json"
+        except ValueError:
+            p = Path(ref)
+            if p.is_file():
+                draft_path = p
+            else:
+                raise ValueError(f"리뷰 대상을 찾을 수 없습니다: {ref}")
+
+        if not draft_path.is_file():
+            raise FileNotFoundError(f"draft.json이 없습니다: {draft_path}")
+
+        draft = DraftReport.model_validate_json(draft_path.read_text(encoding="utf-8"))
+
+        panel = PeerReviewPanel()
+        provider = _make_provider(self.use_mock)
+
+        report = panel.build_review(draft, lens, provider)
+
+        store.note("llm_usage", {
+            "review": provider.last_usage,
+            "review_attempts": panel.last_attempts,
+        })
+        store.write_review(report, panel.render_review(report))
+
+        if report.editor_decision in ("Accept", "Major Revision"):
+            self.console.print(
+                f"   => [bold green]Peer Review 통과 "
+                f"(Decision: {report.editor_decision}, Score: {report.final_score}/100) → review.json, review.md[/bold green]"
+            )
+        else:
+            self.console.print(
+                f"   => [bold red]Peer Review 반려 "
+                f"(Decision: {report.editor_decision}, Score: {report.final_score}/100)[/bold red]"
+            )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Omni-Academic Supervisor Router")
@@ -549,7 +597,7 @@ def main():
     )
     parser.add_argument("--lens", type=str, default="general", help="장착할 도메인 렌즈 (예: cs, medical)")
     parser.add_argument(
-        "--module", type=str, choices=["recon", "ontology", "analyze", "draft"],
+        "--module", type=str, choices=["recon", "ontology", "analyze", "draft", "review"],
         default="recon", help="가동할 타겟 모듈",
     )
     parser.add_argument(

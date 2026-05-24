@@ -121,6 +121,44 @@ class MockProvider(BaseLLMProvider):
                 ],
             })
 
+        if schema.__name__ == "ReviewReport":
+            import re
+            quotes = []
+            for q in re.findall(r"-\s*\[C\d+\]\s*\([^\)]+\):\s*(.+)$", prompt, re.M):
+                quotes.append(q.strip())
+            for line in prompt.splitlines():
+                if line.startswith("Paper Title:"):
+                    quotes.append(line.replace("Paper Title:", "").strip())
+                elif line.startswith("Thesis:"):
+                    quotes.append(line.replace("Thesis:", "").strip())
+
+            if not quotes:
+                quotes = ["Mock thesis"]
+
+            panelists = ["Ella", "Miranda", "Methodologist", "Devil's Advocate"]
+            feedbacks = {
+                "Ella": "Mock review: Thesis has conceptual depth.",
+                "Miranda": "Mock review: Logically coherent and well-structured.",
+                "Methodologist": "Mock review: Factual claims ledger is properly grounded.",
+                "Devil's Advocate": "Mock review: Preservation of tensions and critical limitations are highlighted."
+            }
+            scores = {"Ella": 85, "Miranda": 90, "Methodologist": 95, "Devil's Advocate": 80}
+            reviews = []
+            for p in panelists:
+                reviews.append({
+                    "panelist": p,
+                    "score": scores[p],
+                    "feedback": feedbacks[p],
+                    "source_quotes": [quotes[0][:80]] if quotes else []
+                })
+
+            return schema.model_validate({
+                "reviews": reviews,
+                "editor_decision": "Accept",
+                "editor_summary": "Mock EIC: The paper draft is well-structured and conceptually sound.",
+                "final_score": 87
+            })
+
         from omni_academic.ontology.extractor import (
             Edge,
             EntityClass,
@@ -228,6 +266,17 @@ class AnthropicProvider(BaseLLMProvider):
         "Return the result solely by calling the provided tool."
     )
 
+    PEER_REVIEW_SYSTEM_INSTRUCTION = (
+        "You are a domain-agnostic academic peer reviewer. Evaluate the provided "
+        "paper draft strictly based on the panelist guidelines and target lens. "
+        "Hard rules:\n"
+        "1. Every panelist's source_quotes MUST be copied verbatim from the draft "
+        "text (exact substring, do not paraphrase or edit).\n"
+        "2. Score each panelist from 0 to 100 honestly.\n"
+        "3. Provide critical, constructive critiques.\n"
+        "Return the result solely by calling the provided tool."
+    )
+
     def __init__(self, api_key: str, model: str | None = None):
         if not api_key:
             raise ValueError(
@@ -257,6 +306,7 @@ class AnthropicProvider(BaseLLMProvider):
         system_instruction = {
             "OntologyMap": self.SYSTEM_INSTRUCTION,
             "DraftReport": self.DRAFT_SYSTEM_INSTRUCTION,
+            "ReviewReport": self.PEER_REVIEW_SYSTEM_INSTRUCTION,
         }.get(schema.__name__, self.LENS_ANALYSIS_SYSTEM_INSTRUCTION)
         tool = {
             "name": tool_name,

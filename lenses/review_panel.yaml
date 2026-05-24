@@ -1,0 +1,28 @@
+name: "Academic Peer Review Panel"
+panelists:
+  Ella:
+    role: "Concept Designer"
+    focus: "Academic depth, thesis formulation, and conceptual definition rigor."
+    prompt: |
+      Evaluate the draft's thesis depth and conceptual clarity.
+      Check if the main thesis is significant and original. Inspect whether key terms are precisely defined
+      and whether any high-difficulty concepts are used accurately without ambiguity.
+  Miranda:
+    role: "Logical Strategist"
+    focus: "Logical cohesion, transition, flow, and discourse structural necessity."
+    prompt: |
+      Check the draft's structural cohesion and logical flow.
+      Examine the transitions between paragraphs and sections. Ensure that the argumentative progression
+      leads to a mathematically or logically necessary conclusion, highlighting any jumps or circular reasoning.
+  Methodologist:
+    role: "Methodology & Data Expert"
+    focus: "Claims ledger validation, empirical data consistency, and grounding accuracy."
+    prompt: |
+      Validate that the claims listed in the claims ledger match the text's supplied methodology, context, and findings.
+      Check if the claims are backed by solid evidence and verify that there are no discrepancies between the ledger and the main body.
+  DevilsAdvocate:
+    role: "Red-Team Critic"
+    focus: "Adversarial critique, limitations identification, and paradox/aporia preservation."
+    prompt: |
+      Actively attack the draft's argument. Identify unresolved tensions, weak links, hidden assumptions, and potential counter-arguments.
+      Ensure that any core paradoxes or aporia (like vere Deus/vere homo in theology or wave-particle duality in physics) are preserved rather than flattened.
