@@ -1,6 +1,6 @@
 import json
 
-from src.store.run_store import RunStore
+from omni_academic.store.run_store import RunStore
 
 
 def test_failure_artifact_written_and_truncated(tmp_path):

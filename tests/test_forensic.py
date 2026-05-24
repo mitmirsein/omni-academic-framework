@@ -2,9 +2,9 @@ import asyncio
 
 import pytest
 
-from src.audit.forensic import ForensicAuditor, is_valid_doi_syntax
-from src.recon.engine import PaperMetadata
-from src.recon.scraper import LightpandaScraper
+from omni_academic.audit.forensic import ForensicAuditor, is_valid_doi_syntax
+from omni_academic.recon.engine import PaperMetadata
+from omni_academic.recon.scraper import LightpandaScraper
 
 
 @pytest.mark.parametrize("doi,ok", [
@@ -64,7 +64,7 @@ def test_lightpanda_returns_empty_on_failure_not_fake(monkeypatch):
 
 def test_lightpanda_unset_fails_honestly(monkeypatch):
     monkeypatch.delenv("OMNI_LIGHTPANDA_BIN", raising=False)
-    import src.config.tools as tools
+    import omni_academic.config.tools as tools
     monkeypatch.setattr(tools.shutil, "which", lambda _: None)
     out = asyncio.run(LightpandaScraper().fetch_markdown("https://x.com"))
     assert out == ""  # 하드코딩 경로 제거 — 미설정 시 정직하게 빈 문자열

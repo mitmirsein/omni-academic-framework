@@ -5,7 +5,7 @@ from typing import List, Optional
 import httpx
 from rich.console import Console
 
-from src.audit.gate import AuditFinding
+from omni_academic.audit.gate import AuditFinding
 
 console = Console()
 

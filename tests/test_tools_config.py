@@ -1,5 +1,5 @@
-import src.config.tools as tools
-from src.config.tools import resolve_tool
+import omni_academic.config.tools as tools
+from omni_academic.config.tools import resolve_tool
 
 
 def test_explicit_env_wins(monkeypatch):
@@ -28,7 +28,7 @@ def test_no_hardcoded_machine_local_path():
     import os
 
     paths = [
-        "src/recon/scraper.py",
+        "omni_academic/recon/scraper.py",
         "skills/semantic-scholar/scripts/s2_runner.py",
         "skills/semantic-scholar/scripts/legacy_researcher.py",
     ]

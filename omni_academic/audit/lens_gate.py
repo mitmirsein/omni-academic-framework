@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from src.analyze.lens_analyzer import LensAnalysisReport, LensCriticReport
-from src.audit.gate import AuditFinding, AuditReport
-from src.config.lens import LensNotFoundError, load_lens
-from src.text.paragraphs import assign_paragraph_ids
+from omni_academic.analyze.lens_analyzer import LensAnalysisReport, LensCriticReport
+from omni_academic.audit.gate import AuditFinding, AuditReport
+from omni_academic.config.lens import LensNotFoundError, load_lens
+from omni_academic.text.paragraphs import assign_paragraph_ids
 
 
 def _norm(text: str) -> str:

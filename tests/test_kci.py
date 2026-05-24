@@ -8,7 +8,7 @@
 fixture**다. 검증된 것은 에러-봉투 경로뿐이다.
 """
 
-from src.recon.engine import KCIClient
+from omni_academic.recon.engine import KCIClient
 
 # ✅ 실 API에서 그대로 캡처한 응답(키 누락) — 검증된 구조.
 REAL_NO_KEY_ENVELOPE = b"""<?xml version="1.0" encoding="UTF-8"?>
@@ -125,7 +125,7 @@ def test_kci_html_empty_is_graceful():
 # 끼운 것 — 파서가 표준 경로만 쓰는지 고정한다.
 import asyncio  # noqa: E402
 
-from src.recon.engine import KciOaiClient  # noqa: E402
+from omni_academic.recon.engine import KciOaiClient  # noqa: E402
 
 OAI_LISTRECORDS = """<?xml version="1.0"?>
 <OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/">
@@ -193,7 +193,7 @@ def _oai_page(token: str | None) -> bytes:
 
 
 def test_kci_oai_follows_resumption_token(monkeypatch):
-    from src.recon import engine as engine_mod
+    from omni_academic.recon import engine as engine_mod
 
     seen_urls = []
 
@@ -239,7 +239,7 @@ def test_kci_oai_parse_page_extracts_token():
 
 
 # ── 검색어-무시 버그 수정 (GET→POST) + OAI 브리지 ──────────────────────
-from src.recon.engine import PaperMetadata  # noqa: E402
+from omni_academic.recon.engine import PaperMetadata  # noqa: E402
 
 
 def test_html_has_query_guard():
@@ -250,7 +250,7 @@ def test_html_has_query_guard():
 
 
 def test_kci_oai_get_record_parses_standard(monkeypatch):
-    from src.recon import engine as engine_mod
+    from omni_academic.recon import engine as engine_mod
 
     class _R:
         def __init__(self, c): self.content = c
@@ -273,7 +273,7 @@ def test_kci_oai_get_record_parses_standard(monkeypatch):
 def test_kci_oai_get_record_blocked_returns_none(monkeypatch):
     import httpx as _httpx
 
-    from src.recon import engine as engine_mod
+    from omni_academic.recon import engine as engine_mod
 
     class _C:
         def __init__(self, *a, **k): pass

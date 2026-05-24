@@ -17,12 +17,12 @@ tags: ["recon", "browser", "scholar", "stealth"]
 > `scripts/scholar_runner.py`의 stealth 브라우저 모드는 repo에 **미포함된**
 > 외부 모듈 `agents.stealth_browser`(MoltbotBrowser)에 의존하며, 일반 클론
 > 환경에서는 비활성이다(호출 시 명확한 `[LEGACY]` 메시지로 실패). 번들된
-> **지원 경로**는 `src/recon/engine.py`의 `SerpApiScholarClient`
+> **지원 경로**는 `omni_academic/recon/engine.py`의 `SerpApiScholarClient`
 > (+Lightpanda fallback, 실 렌더 DOM 스냅샷 검증)다. 본 스킬의
 > `--self-test` 및 저장된 HTML 파싱 경로는 외부 모듈 없이 동작한다.
 >
 > **Identity**: 브라우저 기반 구글 스콜라 시맨틱 검색망 및 인지 엔진 (RISE Protocol)
-> **Core Tool (bundled)**: `src/recon/engine.py::SerpApiScholarClient` (지원 경로)
+> **Core Tool (bundled)**: `omni_academic/recon/engine.py::SerpApiScholarClient` (지원 경로)
 > **Legacy Tool (unbundled)**: `scripts/scholar_runner.py` browser mode → 외부 `agents/stealth_browser.py`
 > **Target**: [Google Scholar Labs (Beta)](https://scholar.google.com/scholar_labs/search?hl=ko) / Google Scholar Web
 > **Engine**: `stealth-browser` (legacy, unbundled) / JSONL·HTML parser (bundled, no external dep)

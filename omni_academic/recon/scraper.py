@@ -4,7 +4,7 @@ import urllib.parse
 import httpx
 from rich.console import Console
 
-from src.config.tools import resolve_tool
+from omni_academic.config.tools import resolve_tool
 
 console = Console()
 

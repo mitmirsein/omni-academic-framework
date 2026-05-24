@@ -1,16 +1,16 @@
 import pytest
 
-from src.analyze.lens_analyzer import LensAnalysisReport, LensAnalyzer, LensCriticReport
-from src.audit.gate import AuditGate
-from src.config.lens import (
+from omni_academic.analyze.lens_analyzer import LensAnalysisReport, LensAnalyzer, LensCriticReport
+from omni_academic.audit.gate import AuditGate
+from omni_academic.config.lens import (
     LensNotFoundError,
     get_recon_client_names,
     load_lens,
 )
-from src.llm.provider import AnthropicProvider, MockProvider
-from src.ontology.extractor import OntologyMap
-from src.recon.engine import ArxivClient, CrossrefClient, ReconEngine
-from src.text.paragraphs import assign_paragraph_ids
+from omni_academic.llm.provider import AnthropicProvider, MockProvider
+from omni_academic.ontology.extractor import OntologyMap
+from omni_academic.recon.engine import ArxivClient, CrossrefClient, ReconEngine
+from omni_academic.text.paragraphs import assign_paragraph_ids
 
 
 def test_load_lens_reads_yaml():

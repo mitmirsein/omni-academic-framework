@@ -1,12 +1,12 @@
-from src.analyze.lens_analyzer import (
+from omni_academic.analyze.lens_analyzer import (
     LensAnalysisReport,
     LensAnalyzer,
     LensCriticReport,
     LensCritique,
     LensFinding,
 )
-from src.audit.lens_gate import LensComplianceAuditor
-from src.llm.provider import MockProvider
+from omni_academic.audit.lens_gate import LensComplianceAuditor
+from omni_academic.llm.provider import MockProvider
 
 DOC = "Alpha claim appears here.\n\nBeta method follows."
 

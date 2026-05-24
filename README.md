@@ -20,7 +20,7 @@ status: Draft/V3-Palantir
 >   - **KCI 3경로(정직)**: (1) 무키 표준 OAI-PMH 수확 `--kci-harvest ARTI|ARTI_CONF|JOUR` — base `open.kci.go.kr/oai/request`(실검증 2026-05: 무인증·`oai_dc` 표준), OAI-PMH 2.0+DC 표준만 파싱·식별자 체계 검증·실 fragment 스냅샷, `resumptionToken` 페이지네이션(상한 `MAX_PAGES=50`). (2) `KCI_API_KEY` 있으면 Open API(실 `<MetaData>` 구조 검증·에러봉투 정직). (3) **키워드 검색은 httpx POST 웹검색** — 실검증된 `poSearchBean.conditionList=KEYALL`+`poSearchBean.keywordList` 계약(GET은 검색어 무시→인기 논문 반환 버그라 폐기), 응답에 검색어 미반영 시 오염 차단 0건 처리, **artiId→OAI `GetRecord` best-effort enrichment**(실패 시 웹 필드 유지, `OMNI_KCI_OAI_ENRICH=0`로 비활성). 전부 부재 시 정직한 빈 결과 → 신학·인문학 렌즈는 OpenAlex+Crossref로 degrade.
 >   - **Audit Gates**: Ontology Paragraph-ID 부여 + AuditGate paragraph grounding(환각 차단); Gate 2 ForensicAuditor(DOI 문법+실존 ping·URL liveness·유령 인용 차단); Gate 3 LensComplianceAuditor MVP(렌즈 분석의 paragraph/source_quote/focus coverage 감사); 선택형 LLM self-redteaming critic(`--llm-critic`, `lens_critic.json/md`).
 >   - **LLM 분석**: 실 AnthropicProvider(강제 tool-use+prompt caching); 선택형 source-bound Lens Analysis(`--llm-analysis`, `lens_analysis.json/md`, `lens_audit.json`, source_quote 재검증) — 운용화: grounding 위반 시 구체 오류 피드백 self-correcting 재시도 루프, `OMNI_LLM_MAX_TOKENS` 토큰 예산, 실 model/usage·재시도 횟수를 manifest `llm_usage`에 기록(mock은 낙인되어 실 usage 위장 불가); source-bound Lens Brief(`lens_brief.md`).
->   - **스크래퍼**: LightpandaScraper(바이너리 subprocess — `OMNI_LIGHTPANDA_BIN` env/PATH, 하드코딩 제거, 미설정 시 정직하게 빈 문자열); PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` override·실패 시 정직); 외부 툴 경로 통일 규약(`src/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""); HITL→Scraper→Ontology→Audit E2E.
+>   - **스크래퍼**: LightpandaScraper(바이너리 subprocess — `OMNI_LIGHTPANDA_BIN` env/PATH, 하드코딩 제거, 미설정 시 정직하게 빈 문자열); PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` override·실패 시 정직); 외부 툴 경로 통일 규약(`omni_academic/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""); HITL→Scraper→Ontology→Audit E2E.
 >   - **영속화·모드**: RunStore(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` 무결성 검증); ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest 적중 기록); Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드).
 >   - **운영·품질**: 시스템 진단 & 자동 셋업 대시보드(`--status`/쿼리 생략 시 `.env` 자동 생성·API 키/도구 유효성 UI); CI 품질 게이트(GitHub Actions: `ruff check`[E9/F/I] + 오프라인 pytest + byte-compile, `skills/`는 legacy 제외, scholar-browser extra로 Scholar 파서 snapshot까지 게이트); 실패 진단 artifact(`failure.json`: stage/scraper/HTTP status/content-type/raw excerpt, report.md 링크); Google Scholar 파서 snapshot 회귀 가드.
 > - **`[BLUEPRINT]` (미구현)**: Gate 3 critic 결과 기반 자동 수정 루프.
@@ -76,6 +76,29 @@ status: Draft/V3-Palantir
   - 렌즈 지침 충족 여부를 별도 critic pass로 자동 비판하고 critic quote도 grounding 감사.
 - [ ] **Step 5c: Critic 기반 자동 수정 루프 `[BLUEPRINT]`**
   - critic 결과를 분석 재생성/수정 프롬프트로 되먹이는 bounded retry 구현.
+
+## 🔧 설치 (Installation)
+
+**전역 도구로 설치** (clone 불필요, 격리 환경에 `omni` 명령 등록):
+
+```bash
+uv tool install git+https://github.com/mitmirsein/omni-academic-framework.git
+omni --status        # 진단/셋업
+omni --list-lenses   # 동봉 렌즈 확인 (어느 디렉터리에서 실행해도 동작)
+```
+
+기본 렌즈(`cs`, `medical`, `theology` 등)는 패키지에 동봉되어 임의 디렉터리에서 실행해도 인식된다. 자신의 렌즈 디렉터리를 쓰려면 `$OMNI_LENS_DIR` 또는 `--lens-dir`로 주입한다.
+
+**개발용 (clone 후 실행)**:
+
+```bash
+git clone https://github.com/mitmirsein/omni-academic-framework.git
+cd omni-academic-framework
+uv run omni --setup   # .env 대화형 생성
+uv run omni "your query" --lens cs
+```
+
+---
 
 ## 5. API 환경 설정 가이드
 본 프레임워크는 학술 데이터를 가공하고 검증하기 위해 다음과 같은 API 키 설정을 지원합니다. 터미널에서 **`uv run omni --setup`** 명령을 입력하여 대화형으로 한 번에 손쉽게 설정할 수 있습니다.

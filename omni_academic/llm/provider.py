@@ -75,7 +75,7 @@ class MockProvider(BaseLLMProvider):
                 "critiques": [],
             })
 
-        from src.ontology.extractor import (
+        from omni_academic.ontology.extractor import (
             Edge,
             EntityClass,
             Node,

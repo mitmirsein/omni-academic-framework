@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 from rich.console import Console
 from rich.panel import Panel
 
-from src.config.lens import LensNotFoundError, load_lens
-from src.text.paragraphs import assign_paragraph_ids
+from omni_academic.config.lens import LensNotFoundError, load_lens
+from omni_academic.text.paragraphs import assign_paragraph_ids
 
 console = Console()
 

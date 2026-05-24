@@ -112,6 +112,7 @@ uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/sch
 | `JINA_API_KEY` | Jina Reader 사용 시 인증 | 선택 |
 | `OMNI_LIGHTPANDA_BIN` | Lightpanda 실행 파일 경로 | JS/Scholar 로컬 스크래핑 시 필요 |
 | `OMNI_PDF_EXTRACTOR` | 외부 PDF 텍스트 추출기 | 선택 |
+| `OMNI_LENS_DIR` | 사용자 렌즈 디렉터리 경로 (기본: `./lenses` → 패키지 동봉본) | 선택 |
 
 경로 규칙은 일관되게 `OMNI_*` 환경변수 우선, 없으면 `PATH` 탐색, 그래도 없으면 해당 기능만 정직하게 실패하는 방식이다.
 
@@ -443,13 +444,13 @@ error finding에서 `source_ref`가 `paper[<idx>]` 형식이면 해당 후보는
 전체 목록:
 
 ```bash
-uv run python src/store/query_db.py
+uv run python -m omni_academic.store.query_db
 ```
 
 렌즈 필터:
 
 ```bash
-uv run python src/store/query_db.py economics
+uv run python -m omni_academic.store.query_db economics
 ```
 
 렌즈 이름은 하드코딩 목록이 아니라 `lenses/*.yaml`에서 읽는다.
@@ -457,13 +458,13 @@ uv run python src/store/query_db.py economics
 쿼리 문자열 부분 검색:
 
 ```bash
-uv run python src/store/query_db.py "Exodus"
+uv run python -m omni_academic.store.query_db "Exodus"
 ```
 
 직접 SQL:
 
 ```bash
-uv run python src/store/query_db.py "SELECT * FROM runs WHERE mock = 0 AND audit_passed = 1"
+uv run python -m omni_academic.store.query_db "SELECT * FROM runs WHERE mock = 0 AND audit_passed = 1"
 ```
 
 직접 SQL은 `SELECT`로 시작하는 단일 조회문만 의도한다. 운영상 쓰기/변경 목적의 SQL은 사용하지 않는다.
@@ -472,16 +473,16 @@ uv run python src/store/query_db.py "SELECT * FROM runs WHERE mock = 0 AND audit
 
 ```bash
 # audit 통과 + live run만 최신 10건
-uv run python src/store/query_db.py --passed --live --limit 10
+uv run python -m omni_academic.store.query_db --passed --live --limit 10
 
 # 최신 run 1건을 JSON으로 출력
-uv run python src/store/query_db.py --latest --json
+uv run python -m omni_academic.store.query_db --latest --json
 
 # 특정 키워드 + mock run만 조회
-uv run python src/store/query_db.py "Exodus" --mock
+uv run python -m omni_academic.store.query_db "Exodus" --mock
 
 # DB 경로를 명시해 조회
-uv run python src/store/query_db.py --db runs/index.db --failed
+uv run python -m omni_academic.store.query_db --db runs/index.db --failed
 ```
 
 필터 옵션:

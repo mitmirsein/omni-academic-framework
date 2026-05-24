@@ -23,7 +23,7 @@ _BS4_HINT = (
 _STEALTH_HINT = (
     "[LEGACY] 이 브라우저 모드는 repo에 미포함된 외부 모듈 "
     "`agents.stealth_browser`(MoltbotBrowser)를 요구합니다. 번들된 지원 "
-    "경로는 src/recon/engine.py 의 SerpApiScholarClient(+Lightpanda fallback) "
+    "경로는 omni_academic/recon/engine.py 의 SerpApiScholarClient(+Lightpanda fallback) "
     "입니다. self-test / HTML 파싱 경로는 이 모듈 없이도 동작합니다."
 )
 

@@ -1,5 +1,5 @@
-from src.config.lens import get_recon_client_names, load_lens
-from src.recon.engine import EconBizClient, ReconEngine
+from omni_academic.config.lens import get_recon_client_names, load_lens
+from omni_academic.recon.engine import EconBizClient, ReconEngine
 
 # api.econbiz.de/v1/search 실응답에서 관찰한 최소 스키마
 SAMPLE = {

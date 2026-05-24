@@ -1,5 +1,5 @@
-from src.analyze.lens_analyzer import LensAnalysisReport, LensAnalyzer
-from src.llm.provider import MockProvider
+from omni_academic.analyze.lens_analyzer import LensAnalysisReport, LensAnalyzer
+from omni_academic.llm.provider import MockProvider
 
 DOC = "Inflation targeting anchors expectations.\n\nBond yields decompose into risk premia."
 

@@ -2,9 +2,9 @@ import json
 
 import pytest
 
-from src.recon.engine import PaperMetadata, ReconEngine
-from src.store.run_store import RunStore
-from src.supervisor.router import (
+from omni_academic.recon.engine import PaperMetadata, ReconEngine
+from omni_academic.store.run_store import RunStore
+from omni_academic.supervisor.router import (
     OmniSupervisorRouter,
     _list_lenses,
     _resolve_document,

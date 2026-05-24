@@ -10,7 +10,7 @@ import pytest
 
 pytest.importorskip("bs4")  # scholar-browser extra; CI는 해당 extra로 구동
 
-from src.recon.engine import SerpApiScholarClient  # noqa: E402
+from omni_academic.recon.engine import SerpApiScholarClient  # noqa: E402
 
 SNAPSHOT = """
 <html><body>

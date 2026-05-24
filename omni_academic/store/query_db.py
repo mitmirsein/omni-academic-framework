@@ -1,12 +1,12 @@
 """SQLite index.db 간편 조회 CLI 유틸리티.
 
 사용 예시:
-  uv run python src/store/query_db.py
-  uv run python src/store/query_db.py theology
-  uv run python src/store/query_db.py "Exodus"
-  uv run python src/store/query_db.py --passed --limit 5
-  uv run python src/store/query_db.py --latest --json
-  uv run python src/store/query_db.py "SELECT * FROM runs WHERE mock = 0"
+  uv run python -m omni_academic.store.query_db
+  uv run python -m omni_academic.store.query_db theology
+  uv run python -m omni_academic.store.query_db "Exodus"
+  uv run python -m omni_academic.store.query_db --passed --limit 5
+  uv run python -m omni_academic.store.query_db --latest --json
+  uv run python -m omni_academic.store.query_db "SELECT * FROM runs WHERE mock = 0"
 """
 
 import argparse
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from src.supervisor.run_status import RUN_STATUS_VALUES
+from omni_academic.supervisor.run_status import RUN_STATUS_VALUES
 
 BASE_COLUMNS = ["run_id", "created_at", "query", "lens", "mock", "audit_passed", "dir"]
 OPTIONAL_COLUMNS = ["status", "forensic_passed", "artifacts_count"]

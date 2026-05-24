@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "src" / "store" / "query_db.py"
+SCRIPT = Path(__file__).resolve().parents[1] / "omni_academic" / "store" / "query_db.py"
 
 
 def _make_db(root):

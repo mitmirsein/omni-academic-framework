@@ -911,7 +911,7 @@ class SerpApiScholarClient(BaseAPIClient):
     async def _search_via_local_scraper(self, query: str, max_results: int = 3) -> List[PaperMetadata]:
         import urllib.parse
 
-        from src.config.tools import resolve_tool
+        from omni_academic.config.tools import resolve_tool
 
         lightpanda_path = resolve_tool("OMNI_LIGHTPANDA_BIN", "lightpanda")
         if not os.path.exists(lightpanda_path):
@@ -1089,13 +1089,13 @@ class ReconEngine:
         self.use_cache = use_cache
         self._cache = None
         if use_cache:
-            from src.store.recon_cache import ReconCache
+            from omni_academic.store.recon_cache import ReconCache
             self._cache = ReconCache(base=cache_dir)
         # manifest 자기검증용 — client별 캐시 적중/나이 기록
         self.cache_report: dict = {}
 
     def _resolve_clients(self, lens: str) -> List[BaseAPIClient]:
-        from src.config.lens import (
+        from omni_academic.config.lens import (
             DEFAULT_LENS,
             LensNotFoundError,
             get_recon_client_names,
@@ -1176,7 +1176,7 @@ class ReconEngine:
 
     def generate_digest(self, papers: List[PaperMetadata]):
         self.console.print("\n[bold yellow]📑 Recon Digest Report[/bold yellow]")
-        from src.audit.forensic import is_valid_doi_syntax
+        from omni_academic.audit.forensic import is_valid_doi_syntax
 
         for idx, p in enumerate(papers, 1):
             if p.doi and not is_valid_doi_syntax(p.doi):

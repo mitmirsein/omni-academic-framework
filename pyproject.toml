@@ -30,7 +30,7 @@ dev = [
 ]
 
 [project.scripts]
-omni = "src.supervisor.router:main"
+omni = "omni_academic.supervisor.router:main"
 
 [tool.uv]
 exclude-newer = "7 days"
@@ -50,4 +50,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src"]
+packages = ["omni_academic"]
+
+# 렌즈 어댑터를 패키지 데이터로 동봉 → 설치 후 임의 CWD에서도 기본 렌즈 사용 가능.
+# (사용자는 --lens-dir 또는 $OMNI_LENS_DIR로 자신의 렌즈 디렉터리를 주입 가능)
+[tool.hatch.build.targets.wheel.force-include]
+"lenses" = "omni_academic/lenses"

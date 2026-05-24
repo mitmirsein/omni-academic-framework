@@ -1,16 +1,16 @@
 import json
 import sqlite3
 
-from src.audit.gate import AuditFinding, AuditReport
-from src.ontology.extractor import (
+from omni_academic.audit.gate import AuditFinding, AuditReport
+from omni_academic.ontology.extractor import (
     Edge,
     EntityClass,
     Node,
     OntologyMap,
     RelationPredicate,
 )
-from src.recon.engine import PaperMetadata
-from src.store.run_store import RunStore
+from omni_academic.recon.engine import PaperMetadata
+from omni_academic.store.run_store import RunStore
 
 
 def _ontology():

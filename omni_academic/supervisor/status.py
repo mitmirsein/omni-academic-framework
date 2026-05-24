@@ -6,7 +6,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from src.config.tools import resolve_tool
+from omni_academic.config.tools import resolve_tool
 
 console = Console()
 

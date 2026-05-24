@@ -1,5 +1,5 @@
-from src.audit.gate import AuditGate
-from src.ontology.extractor import (
+from omni_academic.audit.gate import AuditGate
+from omni_academic.ontology.extractor import (
     Edge,
     EntityClass,
     Node,

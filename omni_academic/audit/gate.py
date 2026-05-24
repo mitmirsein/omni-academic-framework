@@ -4,7 +4,7 @@ from typing import Dict, List, Literal, Optional, Set, Union
 from pydantic import BaseModel
 from rich.console import Console
 
-from src.ontology.extractor import OntologyMap
+from omni_academic.ontology.extractor import OntologyMap
 
 console = Console()
 

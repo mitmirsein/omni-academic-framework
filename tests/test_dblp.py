@@ -1,5 +1,5 @@
-from src.config.lens import get_recon_client_names, load_lens
-from src.recon.engine import DBLPClient, ReconEngine
+from omni_academic.config.lens import get_recon_client_names, load_lens
+from omni_academic.recon.engine import DBLPClient, ReconEngine
 
 # dblp.org/search/publ/api?format=json 실응답에서 관찰한 최소 스키마.
 # 다건 결과 → hit/author 모두 list.

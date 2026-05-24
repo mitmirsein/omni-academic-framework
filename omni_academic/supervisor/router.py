@@ -14,8 +14,8 @@ except ImportError:
 from pydantic import BaseModel
 from rich.console import Console
 
-from src.store.run_store import RunStore, verify_artifact_manifest
-from src.supervisor import run_status
+from omni_academic.store.run_store import RunStore, verify_artifact_manifest
+from omni_academic.supervisor import run_status
 
 console = Console()
 
@@ -68,16 +68,20 @@ def _resolve_document(query: str) -> str:
 
 def _make_provider(use_mock: bool):
     if use_mock:
-        from src.llm.provider import MockProvider
+        from omni_academic.llm.provider import MockProvider
         return MockProvider()
-    from src.llm.provider import AnthropicProvider
+    from omni_academic.llm.provider import AnthropicProvider
     return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
 
 def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
-    from src.config.lens import get_recon_client_names, load_lens
+    from omni_academic.config.lens import (
+        get_recon_client_names,
+        load_lens,
+        resolve_lens_dir,
+    )
 
-    root = Path(lens_dir)
+    root = Path(resolve_lens_dir(lens_dir))
     rows = []
     if not root.is_dir():
         return rows
@@ -239,8 +243,8 @@ class OmniSupervisorRouter:
                           snowball: str = "", kci_harvest: str = ""):
         from rich.prompt import Prompt
 
-        from src.recon.engine import CitationGraphClient, KciOaiClient, ReconEngine
-        from src.recon.scraper import JinaReaderScraper, ScraperFactory
+        from omni_academic.recon.engine import CitationGraphClient, KciOaiClient, ReconEngine
+        from omni_academic.recon.scraper import JinaReaderScraper, ScraperFactory
 
         engine = ReconEngine(use_cache=not no_cache)
         if kci_harvest:
@@ -260,7 +264,7 @@ class OmniSupervisorRouter:
         else:
             papers = await engine.search(query, lens=lens)
         if forensic and papers:
-            from src.audit.forensic import ForensicAuditor
+            from omni_academic.audit.forensic import ForensicAuditor
             findings = await ForensicAuditor().verify_papers(papers)
             store.write_forensic(findings)
             fpassed = ForensicAuditor.passed(findings)
@@ -343,9 +347,9 @@ class OmniSupervisorRouter:
         self._run_ontology(store, markdown_text)
 
     def _run_ontology(self, store: RunStore, target_document: str):
-        from src.audit.gate import AuditGate
-        from src.ontology.extractor import OntologyExtractor
-        from src.text.paragraphs import assign_paragraph_ids
+        from omni_academic.audit.gate import AuditGate
+        from omni_academic.ontology.extractor import OntologyExtractor
+        from omni_academic.text.paragraphs import assign_paragraph_ids
 
         annotated, manifest = assign_paragraph_ids(target_document)
         store.write_paragraphs(manifest)
@@ -379,9 +383,9 @@ class OmniSupervisorRouter:
         llm_analysis: bool = False,
         llm_critic: bool = False,
     ):
-        from src.analyze.lens_analyzer import LensAnalyzer
-        from src.audit.lens_gate import LensComplianceAuditor
-        from src.config.lens import LensNotFoundError
+        from omni_academic.analyze.lens_analyzer import LensAnalyzer
+        from omni_academic.audit.lens_gate import LensComplianceAuditor
+        from omni_academic.config.lens import LensNotFoundError
 
         analyzer = LensAnalyzer()
         self.console.print(
@@ -517,7 +521,7 @@ def main():
     args = parser.parse_args()
 
     if args.setup:
-        from src.supervisor.status import run_setup_wizard
+        from omni_academic.supervisor.status import run_setup_wizard
         run_setup_wizard()
         return
 
@@ -541,7 +545,7 @@ def main():
         raise SystemExit(0 if ok else 1)
 
     if args.status or not args.query:
-        from src.supervisor.status import run_diagnostics
+        from omni_academic.supervisor.status import run_diagnostics
         run_diagnostics()
         return
 

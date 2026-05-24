@@ -1,4 +1,4 @@
-from src.text.paragraphs import assign_paragraph_ids
+from omni_academic.text.paragraphs import assign_paragraph_ids
 
 
 def test_assigns_sequential_ids_and_manifest():

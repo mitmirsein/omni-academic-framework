@@ -1,8 +1,8 @@
 import asyncio
 
-from src.recon import engine as engine_mod
-from src.recon import scraper as scraper_mod
-from src.recon.engine import (
+from omni_academic.recon import engine as engine_mod
+from omni_academic.recon import scraper as scraper_mod
+from omni_academic.recon.engine import (
     CLIENT_FACTORY,
     BaseAPIClient,
     CitationGraphClient,
@@ -10,12 +10,12 @@ from src.recon.engine import (
     ReconEngine,
     SerpApiScholarClient,
 )
-from src.recon.scraper import (
+from omni_academic.recon.scraper import (
     JinaReaderScraper,
     PdfExtractorScraper,
     ScraperFactory,
 )
-from src.store.recon_cache import ReconCache
+from omni_academic.store.recon_cache import ReconCache
 
 
 # ---- helpers: 오프라인 fake httpx ----------------------------------------

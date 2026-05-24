@@ -1,6 +1,6 @@
 import pytest
 
-from src.recon.scraper import (
+from omni_academic.recon.scraper import (
     JinaReaderScraper,
     LightpandaScraper,
     ScraperFactory,
