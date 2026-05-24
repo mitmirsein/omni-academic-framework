@@ -205,6 +205,8 @@ uv run omni --verify-run <run>
 
 to verify artifact integrity against the manifest.
 
+For field-level JSON/Markdown contracts, see [SCHEMAS.md](./SCHEMAS.md).
+
 ## Testing Strategy
 
 Tests prefer deterministic mock providers and scripted failure cases. Important behaviors covered by tests include:
@@ -221,4 +223,3 @@ Run:
 uv run ruff check
 uv run python -m pytest -q
 ```
-

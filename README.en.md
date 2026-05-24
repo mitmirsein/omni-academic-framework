@@ -120,6 +120,7 @@ Most users only need:
 
 - [USER_GUIDE.md](./USER_GUIDE.md): practical usage guide
 - [ARCHITECTURE.md](./ARCHITECTURE.md): module and gate design
+- [SCHEMAS.md](./SCHEMAS.md): JSON/Markdown artifact contracts
 - [CHANGELOG.md](./CHANGELOG.md): versioned change notes
 - [RELEASE_NOTES.md](./RELEASE_NOTES.md): latest release summary
 - [lenses/](./lenses): bundled domain lenses

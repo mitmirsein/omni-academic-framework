@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 
 This project uses pragmatic version notes rather than a strict release calendar. Dates are written in ISO format.
 
+## [Unreleased]
+
+### Added
+
+- Added `SCHEMAS.md` to document artifact contracts for downstream consumers.
+
 ## [0.6.0] - 2026-05-24
 
 ### Added
