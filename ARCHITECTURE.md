@@ -80,6 +80,7 @@ The router is the CLI orchestration layer. It:
 - finalizes the run
 
 The router is also responsible for preventing a failed gate from being overwritten as `completed`.
+For saved runs, `--show-run` also maps blocked/failed statuses to file-oriented next steps so users know whether to inspect `audit.json`, `draft_audit.json`, `failure.json`, `review.md`, or `report.md`.
 
 ### RunStore
 

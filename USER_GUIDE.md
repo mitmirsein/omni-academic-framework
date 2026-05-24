@@ -174,6 +174,8 @@ uv run omni --show-run examples-sample-md/latest
 uv run omni --show-run runs/examples-sample-md/latest
 ```
 
+`--show-run`은 blocked/failed 상태일 때 다음에 확인할 파일과 재시도 방향을 함께 출력합니다.
+
 무결성 검증:
 
 ```bash
@@ -334,4 +336,3 @@ uv run python -m pytest -q
 ```
 
 push 전에는 두 명령을 실행하고 `git status --short`를 확인합니다.
-

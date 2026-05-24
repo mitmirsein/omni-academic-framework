@@ -9,6 +9,7 @@ from omni_academic.supervisor.router import (
     _list_lenses,
     _resolve_document,
     _resolve_run_dir,
+    _run_next_steps,
     _verify_run,
 )
 
@@ -179,3 +180,21 @@ def test_verify_run_detects_artifact_tampering(tmp_path):
     ok, issues = _verify_run(store._meta["run_id"], str(tmp_path / "runs"))
     assert not ok
     assert any("report.md" in issue for issue in issues)
+
+
+def test_run_next_steps_for_review_grounding_failure(tmp_path):
+    run_dir = tmp_path / "runs" / "q" / "MOCK-20260524T000000Z"
+    manifest = {
+        "status": "blocked_by_review_grounding",
+        "has_failure_artifact": True,
+    }
+
+    steps = _run_next_steps("blocked_by_review_grounding", manifest, run_dir)
+
+    assert any("failure.json" in step for step in steps)
+    assert any("review.json" in step and "intentionally absent" in step for step in steps)
+    assert str(run_dir / "report.md") in steps[-1]
+
+
+def test_run_next_steps_for_completed_is_empty(tmp_path):
+    assert _run_next_steps("completed", {}, tmp_path) == []

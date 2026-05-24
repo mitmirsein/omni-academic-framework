@@ -159,6 +159,67 @@ def _resolve_run_dir(run_ref: str, base: str = "runs") -> Path:
     raise ValueError(f"run을 찾을 수 없습니다: {run_ref}")
 
 
+def _run_next_steps(status: str, manifest: dict, run_dir: Path) -> list[str]:
+    """Return concise, file-oriented next steps for non-happy run states."""
+    status = str(status or run_status.UNKNOWN)
+    steps_by_status = {
+        run_status.BLOCKED_BY_AUDIT: [
+            "Inspect `audit.json` for `error` findings.",
+            "Inspect `paragraphs.json` and `ontology.json` for bad `paragraph_id` or `source_quote` values.",
+            "Fix the source/provider behavior, then rerun `--module ontology` or `--module draft`.",
+        ],
+        run_status.BLOCKED_BY_DRAFT_AUDIT: [
+            "Inspect `draft_audit.json` for claim, quote, or anchor findings.",
+            "Inspect `draft.json` for ungrounded `claims[]` or missing `[C#]` body anchors.",
+            "Rerun `--module draft` after correcting the draft prompt/provider behavior.",
+        ],
+        run_status.BLOCKED_BY_REVIEW_GROUNDING: [
+            "Inspect `failure.json` for the absent review quote.",
+            "Inspect the source `draft.json` and retry `--module review` after correcting the review provider output.",
+            "Do not treat this run as a valid peer review; `review.json` and `review.md` are intentionally absent.",
+        ],
+        run_status.REVIEW_REJECTED: [
+            "Inspect `review.md` or `review.json` for the Chief Editor decision and panel feedback.",
+            "Revise the draft source run, then rerun `--module review`.",
+        ],
+        run_status.SCRAPING_FAILED: [
+            "Inspect `failure.json` for URL, scraper, HTTP status, and content type.",
+            "Run `omni --status` to check local scraper/PDF tool configuration.",
+            "Try another source URL or configure `OMNI_LIGHTPANDA_BIN` / `OMNI_PDF_EXTRACTOR`.",
+        ],
+        run_status.SCRAPER_DETECTION_FAILED: [
+            "Inspect `failure.json` for the unsupported URL and content type.",
+            "Try a direct PDF/HTML URL or add scraper support for this source.",
+        ],
+        run_status.ANALYSIS_FAILED: [
+            "Inspect `error_message` in `manifest.json` and the terminal logs.",
+            "Run `omni --list-lenses` to confirm the requested lens exists.",
+            "For live LLM paths, run `omni --status` and check provider setup.",
+        ],
+        run_status.NO_PAPERS_FOUND: [
+            "Try a broader query or a different lens.",
+            "Use `--no-cache` if an empty cached result is suspected.",
+            "Run `omni --status` to check API key and tool availability.",
+        ],
+        run_status.CANCELLED_BY_USER: [
+            "Rerun the recon command and choose a listed HITL candidate number.",
+        ],
+        run_status.INVALID_CHOICE: [
+            "Rerun the recon command and choose a valid listed candidate number.",
+        ],
+        run_status.FAILED: [
+            "Inspect `error_message` in `manifest.json` and terminal traceback.",
+            "Inspect `failure.json` if present.",
+        ],
+    }
+    steps = list(steps_by_status.get(status, []))
+    if manifest.get("has_failure_artifact") and not any("failure.json" in s for s in steps):
+        steps.insert(0, "Inspect `failure.json` for stage-specific diagnostics.")
+    if status != run_status.COMPLETED:
+        steps.append(f"Open `{run_dir / 'report.md'}` for the full run summary.")
+    return steps
+
+
 def _show_run(run_ref: str, base: str = "runs") -> None:
     run_dir = _resolve_run_dir(run_ref, base)
     manifest_path = run_dir / "manifest.json"
@@ -187,6 +248,11 @@ def _show_run(run_ref: str, base: str = "runs") -> None:
             f"- Artifact Integrity: `{ok}/{len(artifact_manifest)} present`, "
             f"`{total_bytes}` bytes"
         )
+    next_steps = _run_next_steps(str(manifest.get("status", "")), manifest, run_dir)
+    if next_steps:
+        console.print("[bold yellow]Next Steps:[/bold yellow]")
+        for step in next_steps:
+            console.print(f"- {step}")
 
 
 def _verify_run(run_ref: str, base: str = "runs") -> tuple[bool, list[str]]:
