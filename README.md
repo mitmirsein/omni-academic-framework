@@ -132,4 +132,6 @@ uv run ruff check
 uv run python -m pytest -q
 ```
 
+GitHub Actions도 같은 기본 품질 게이트를 실행합니다: lint, offline tests, CLI ontology smoke, artifact verification, byte-compile.
+
 로컬 실행 산출물은 git에서 제외됩니다: `.env`, `.cache/`, `.venv/`, `runs/`, `handoff/`, `scratch/`, `.pytest_cache/`, `__pycache__/`.

@@ -132,4 +132,6 @@ uv run ruff check
 uv run python -m pytest -q
 ```
 
+GitHub Actions runs the same basic quality gate: lint, offline tests, CLI ontology smoke, artifact verification, and byte-compile.
+
 Local runtime outputs are ignored by git: `.env`, `.cache/`, `.venv/`, `runs/`, `handoff/`, `scratch/`, `.pytest_cache/`, `__pycache__/`.

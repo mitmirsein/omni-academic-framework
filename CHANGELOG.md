@@ -13,6 +13,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 - Added review panel configuration through `lenses/review_panel.yaml`.
 - Added draft generation (`--module draft`) with a source-bound claims ledger and `DraftComplianceAuditor`.
 - Added run integrity metadata through `artifact_manifest` and `--verify-run`.
+- Added CI smoke coverage for mock ontology generation and artifact verification.
 
 ### Changed
 

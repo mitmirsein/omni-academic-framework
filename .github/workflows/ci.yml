@@ -32,5 +32,10 @@ jobs:
       - name: Pytest (offline suite)
         run: uv run python -m pytest -q
 
+      - name: CLI smoke (ontology + artifact verification)
+        run: |
+          uv run omni ./examples/sample.md --module ontology --lens general --mock
+          uv run omni --verify-run examples-sample-md/latest
+
       - name: Byte-compile
         run: uv run python -m compileall -q omni_academic tests

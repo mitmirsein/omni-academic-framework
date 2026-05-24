@@ -10,6 +10,7 @@ This release makes the framework stricter about what counts as a successful run.
 - Added `--module review` for panel-based peer review of generated drafts.
 - Added hard grounding validation for peer-review quotes.
 - Added explicit blocked statuses for failed gates.
+- Added CI smoke coverage for mock ontology generation and artifact verification.
 - Simplified the public documentation for standalone project use.
 - Added architecture and changelog documents.
 
@@ -52,10 +53,11 @@ Result:
 
 CLI smoke paths were also checked with mock draft, review, and `--verify-run`.
 
+The GitHub Actions CI gate runs lint, offline tests, a mock ontology CLI smoke, artifact verification, and byte-compile.
+
 ### Upgrade Notes
 
 - Review panel configuration now uses `panelists` plus `chief_editor`.
 - `DevilsAdvocate` was normalized to the display name `Devil's Advocate` with the id `devils_advocate`.
 - `OPENAI_API_KEY` and `GEMINI_API_KEY` are not required for the default live path.
 - Existing local `runs/` remain local artifacts and are not part of the package.
-
