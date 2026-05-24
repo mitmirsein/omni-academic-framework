@@ -1,561 +1,307 @@
 # Omni-Academic Framework 사용자 가이드
 
-이 문서는 `omni-academic-framework`를 실제로 운용하기 위한 상세 매뉴얼이다. 프레임워크의 목적은 학술 질의나 원문 텍스트를 정찰하고, 필요한 경우 원문을 징발한 뒤, 문단 근거에 고정된 온톨로지 맵을 생성하고, 감사 결과가 통과한 검증 산출물을 `runs/` 아래 typed JSON으로 영속화하는 것이다.
+이 문서는 `omni-academic-framework`를 독립 프로젝트로 실행하는 실무 가이드입니다. 목표는 명령, 산출물, gate 상태, 문제 해결을 빠르게 확인할 수 있게 하는 것입니다.
 
-현재 상태는 프로토타입 v0.6.0이다. 모든 기능이 완전 자동 연구 에이전트로 닫혀 있는 것은 아니며, HITL 승인, 외부 API 가용성, LLM provider 설정, 원문 접근 가능성에 따라 생성되는 산출물이 달라진다. 이 문서는 구현된 동작을 기준으로 작성한다.
+## 1. 첫 실행
 
----
-
-## 1. 빠른 시작
-
-프로젝트 루트에서 실행한다.
+프로젝트 루트에서 환경을 확인합니다.
 
 ```bash
 uv run omni --status
+uv run omni --list-lenses
 ```
 
-진단 화면에서 API 키, 외부 도구, Git commit 정보를 확인한다. 최초 설정을 대화형으로 진행하려면 다음 명령을 사용한다.
-
-```bash
-uv run omni --setup
-```
-
-가장 단순한 Mock 실행은 다음과 같다.
-
-```bash
-uv run omni "Inflation dynamics" --lens economics --mock
-```
-
-이 명령은 기본적으로 `recon` 모듈을 실행한다. `--mock`은 LLM 기반 온톨로지 추출 단계에서 MockProvider를 사용한다는 뜻이지, Recon 네트워크 호출 전체를 오프라인으로 바꾼다는 뜻은 아니다.
-
-완전 오프라인에 가까운 온톨로지 경로만 점검하려면 로컬 텍스트 파일을 대상으로 `ontology` 모듈을 실행한다.
+API key 없이 기본 파이프라인을 확인합니다.
 
 ```bash
 uv run omni ./examples/sample.md --module ontology --lens general --mock
 ```
 
-`examples/sample.md`는 repo에 포함된 공개 fixture다. 이 명령은 외부 학술 API를 호출하지 않고, paragraphing -> MockProvider ontology -> AuditGate -> RunStore 저장 경로를 확인한다.
+생성 위치:
 
----
-
-## 2. 개념 지도
-
-프레임워크는 고정된 한 줄짜리 파이프라인이 아니라, 필요한 단계까지만 진행하는 점진적 구조다.
-
-```mermaid
-graph TD
-    A["입력: Query 또는 문서 경로"] --> B["Recon: 학술 메타데이터 정찰"]
-    B --> C["HITL 승인: 딥다이브할 논문 선택"]
-    C --> D["Fulltext Acquisition: 원문 징발"]
-    D --> E["Paragraphing: 문단 ID 부여"]
-    E --> F["Ontology Mapping: 노드/엣지 추출"]
-    F --> G["Audit Gate: grounding 및 quote 대조"]
-    B --> H["RunStore: 실행 산출물 저장"]
-    G --> H
-    H --> I["Optional Export: 검증 산출물 내보내기"]
+```text
+runs/examples-sample-md/<timestamp>/
 ```
 
-주요 단계는 다음과 같다.
+주요 파일:
 
-| 단계 | 역할 | 주요 산출물 |
-|---|---|---|
-| Recon | 렌즈별 학술 API/검색 클라이언트로 후보 논문 수집 | `digest.json` |
-| HITL | 사용자가 딥다이브할 후보 번호 선택 | `manifest.json` 상태 |
-| Scrape | URL/PDF/HTML 원문을 Markdown 텍스트로 징발 | `fulltext.md` |
-| Paragraphing | 원문을 문단으로 나누고 `P_0001` 형식 ID 부여 | `paragraphs.json` |
-| Ontology | 문단 ID와 근거 인용을 포함한 노드/엣지 생성 | `ontology.json` |
-| Audit | paragraph_id와 source_quote를 기계적으로 대조 | `audit.json` |
-| Forensic | DOI/URL 실존성 확인, 유령 인용 차단 | `forensic.json` |
-| Analyze | 렌즈 focus/prompt와 원문 문단 window를 묶은 분석 준비 brief 생성 | `lens_brief.md` |
-| Draft | 문단 근거에 고정된 주장 원장 기반의 초안 집필 | `draft.json`, `draft.md`, `draft_audit.json` |
-| Review | 4인 리뷰어 패널 비평 및 최종 편집장 평결 | `review.json`, `review.md` |
-| RunStore | 모든 실행의 상태와 산출물을 보존 | `report.md`, `manifest.json`, `runs/index.db` |
+- `paragraphs.json`
+- `ontology.json`
+- `audit.json`
+- `manifest.json`
+- `report.md`
 
----
+## 2. 설치와 설정
 
-## 3. 설치와 환경 설정
-
-### 필수 실행 조건
-
-`uv` 기반 실행을 전제로 한다.
+개발 checkout:
 
 ```bash
+git clone https://github.com/mitmirsein/omni-academic-framework.git
+cd omni-academic-framework
 uv run omni --status
-uv run python -m pytest
 ```
 
-기본 의존성은 `pyproject.toml`에 정의되어 있다. 추가 기능은 optional extra로 분리되어 있다.
+전역 도구 설치:
 
-| Extra | 용도 |
+```bash
+uv tool install git+https://github.com/mitmirsein/omni-academic-framework.git
+omni --status
+```
+
+실 LLM 모드는 Anthropic provider를 기본으로 사용합니다.
+
+```bash
+uv run --extra llm omni --setup
+```
+
+필수 변수:
+
+| 변수 | 용도 |
 |---|---|
-| `semantic-scholar` | Semantic Scholar skill runner 및 `.env` 로딩 보조 |
-| `scholar-browser` | Google Scholar HTML 파싱용 BeautifulSoup |
-| `llm` | AnthropicProvider 사용 |
-| `dev` | 테스트 도구 |
+| `ANTHROPIC_API_KEY` | live ontology/analyze/draft/review 실행 |
 
-예시:
+선택 변수:
 
-```bash
-uv run --extra llm omni "query" --module ontology
-uv run --extra scholar-browser python skills/google-scholar-semantic/scripts/scholar_runner.py --self-test
-```
+| 변수 | 용도 |
+|---|---|
+| `SERPAPI_API_KEY` | SerpAPI 기반 Google Scholar 검색 |
+| `SEMANTIC_SCHOLAR_API_KEY` | Semantic Scholar rate limit 완화 |
+| `OMNI_LIGHTPANDA_BIN` | 브라우저 렌더링이 필요한 페이지 fallback |
+| `OMNI_PDF_EXTRACTOR` | 외부 PDF 텍스트 추출기 |
+| `OMNI_LENS_DIR` | 사용자 lens 디렉터리 |
 
-### `.env` 설정
+`OPENAI_API_KEY`와 `GEMINI_API_KEY`는 기본 live path에는 필요하지 않습니다.
 
-`.env.example`을 기준으로 필요한 값만 채운다.
+## 3. 모듈별 실행
 
-| 변수 | 용도 | 필수 여부 |
+| 모듈 | 사용할 때 | 주요 산출물 |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | 실제 LLM 온톨로지 추출 | 실 LLM 사용 시 필요 |
-| `OPENAI_API_KEY` | 향후 확장/보조 모델용 | 선택 |
-| `GEMINI_API_KEY` | 향후 확장/보조 모델용 | 선택 |
-| `SEMANTIC_SCHOLAR_API_KEY` | Semantic Scholar rate limit 완화 | 선택 |
-| `SERPAPI_API_KEY` | Google Scholar API 검색 | 선택 |
-| `JINA_API_KEY` | Jina Reader 사용 시 인증 | 선택 |
-| `OMNI_LIGHTPANDA_BIN` | Lightpanda 실행 파일 경로 | JS/Scholar 로컬 스크래핑 시 필요 |
-| `OMNI_PDF_EXTRACTOR` | 외부 PDF 텍스트 추출기 | 선택 |
-| `OMNI_LENS_DIR` | 사용자 렌즈 디렉터리 경로 (기본: `./lenses` → 패키지 동봉본) | 선택 |
+| `recon` | 검색어로 후보 논문을 찾을 때 | `digest.json` |
+| `ontology` | 텍스트에서 grounded knowledge map을 만들 때 | `ontology.json`, `audit.json` |
+| `analyze` | lens 기반 briefing 또는 LLM analysis가 필요할 때 | `lens_brief.md`, optional `lens_analysis.*` |
+| `draft` | source-grounded draft를 만들 때 | `draft.json`, `draft.md`, `draft_audit.json` |
+| `review` | draft run을 패널 리뷰할 때 | grounding 통과 시 `review.json`, `review.md` |
 
-경로 규칙은 일관되게 `OMNI_*` 환경변수 우선, 없으면 `PATH` 탐색, 그래도 없으면 해당 기능만 정직하게 실패하는 방식이다.
-
----
-
-## 4. 실행 명령 레퍼런스
-
-### 시스템 진단
+### Recon
 
 ```bash
-uv run omni --status
+uv run omni "Pauline mission universal gospel" --lens theology
 ```
 
-확인 항목:
+기본 모듈은 `recon`입니다. 후보 논문을 출력하고 HITL 선택을 요청합니다. `q`를 입력하면 정찰 결과만 저장하고 종료합니다.
 
-- API key 설정 여부
-- Lightpanda/pdftotext 탐지 여부
-- 현재 Git commit
-- 빠른 시작 명령 안내
+자주 쓰는 옵션:
 
-### 렌즈 목록 확인
+```bash
+uv run omni "inflation dynamics" --lens economics --no-cache
+uv run omni "justification ethics" --lens theology --forensic
+uv run omni "ignored label" --snowball "10.1234/example.doi"
+uv run omni "kci harvest" --module recon --kci-harvest ARTI
+```
+
+### Ontology
+
+```bash
+uv run omni ./paper.md --module ontology --lens general --mock
+uv run --extra llm omni ./paper.md --module ontology --lens general
+```
+
+입력이 실제 파일 경로이면 파일 내용을 읽습니다. 경로가 아니면 입력 문자열 자체를 분석 대상으로 사용합니다.
+
+Ontology run은 `paragraphs.json`을 먼저 만들고, 모든 node/edge의 `paragraph_id`와 `source_quote`를 원문 문단에 대조합니다.
+
+### Analyze
+
+```bash
+uv run omni ./paper.md --module analyze --lens theology
+uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-analysis
+uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-critic
+```
+
+기본 `analyze`는 source-bound briefing scaffold를 저장합니다. 실제 LLM 분석은 `--llm-analysis`를 붙여야 합니다.
+
+`--llm-critic`은 `--llm-analysis`를 포함하며 critic 결과와 critic grounding audit을 함께 저장합니다.
+
+### Draft
+
+```bash
+uv run omni ./paper.md --module draft --lens general --mock
+uv run --extra llm omni ./paper.md --module draft --lens general
+```
+
+Draft는 먼저 ontology를 만들고 audit합니다. ontology audit이 실패하면 draft를 만들지 않고 status를 `blocked_by_audit`으로 남깁니다.
+
+Draft claim은 다음 조건을 만족해야 합니다.
+
+- `claims[]`에 등록됨
+- 본문에서 `[C#]`로 참조됨
+- 실제 `paragraph_id`에 묶임
+- 해당 문단에 존재하는 verbatim `source_quote`를 가짐
+
+### Review
+
+```bash
+uv run omni runs/examples-sample-md/latest --module review --lens general --mock
+uv run --extra llm omni <draft-run> --module review --lens general
+```
+
+Review 대상은 `draft.json`을 포함한 run 디렉터리 또는 `draft.json` 파일 경로입니다.
+
+패널 설정은 `lenses/review_panel.yaml`에 있습니다.
+
+- Ella
+- Miranda
+- Methodologist
+- Devil's Advocate
+- Chief Editor synthesis
+
+각 review의 `source_quotes`는 draft에 verbatim으로 존재해야 합니다. 마지막 재시도까지 grounding이 실패하면 `failure.json`을 쓰고 status를 `blocked_by_review_grounding`으로 남기며 `review.json`/`review.md`는 만들지 않습니다.
+
+## 4. Run 다루기
+
+Run은 아래 형식으로 저장됩니다.
+
+```text
+runs/<query-slug>/<timestamp>/
+```
+
+Mock run은 timestamp 앞에 `MOCK-`가 붙습니다.
+
+조회:
+
+```bash
+uv run omni --show-run examples-sample-md/latest
+uv run omni --show-run runs/examples-sample-md/latest
+```
+
+무결성 검증:
+
+```bash
+uv run omni --verify-run examples-sample-md/latest
+uv run omni --verify-run runs/examples-sample-md/latest
+```
+
+`--verify-run`은 `manifest.json`의 `artifact_manifest`를 기준으로 파일 존재 여부, byte size, sha256을 확인합니다.
+
+중요 파일:
+
+| 파일 | 의미 |
+|---|---|
+| `manifest.json` | run metadata, status, provenance, artifact hash |
+| `report.md` | 사람이 읽는 요약 |
+| `paragraphs.json` | 문단 ID와 원문 문단 mapping |
+| `ontology.json` | 추출된 node/edge |
+| `audit.json` | ontology gate 결과 |
+| `draft_audit.json` | draft gate 결과 |
+| `failure.json` | blocked/failed path 진단 |
+
+## 5. 주요 Status
+
+| Status | 의미 |
+|---|---|
+| `completed` | 필수 gate 통과 |
+| `blocked_by_audit` | ontology audit 실패 |
+| `blocked_by_draft_audit` | draft compliance 실패 |
+| `blocked_by_review_grounding` | review quote grounding 실패 |
+| `review_rejected` | review는 완료됐지만 Chief Editor가 reject |
+| `analysis_failed` | lens/provider/input 문제로 분석 실패 |
+| `scraping_failed` | 원문 수집이 markdown을 만들지 못함 |
+| `no_papers_found` | recon 후보 없음 |
+| `cancelled_by_user` | HITL 단계에서 사용자가 중단 |
+
+## 6. Lens
+
+기본 lens는 `lenses/`에 있습니다.
+
+- `general`
+- `theology`
+- `economics`
+- `medical`
+- `humanities`
+- `cs`
+
+목록 확인:
 
 ```bash
 uv run omni --list-lenses
 ```
 
-`lenses/*.yaml`에 등록된 렌즈 ID, 표시 이름, recon client, focus area를 표로 출력한다. 새 렌즈를 추가한 뒤 CLI에서 인식되는지 확인할 때 유용하다.
-
-### 저장된 run 확인
+사용자 lens 디렉터리:
 
 ```bash
-uv run omni --show-run exodus-3-19-20
-uv run omni --show-run exodus-3-19-20/latest
-uv run omni --show-run exodus-3-19-20/MOCK-20260519T094523Z
+OMNI_LENS_DIR=/path/to/lenses uv run omni ./paper.md --module ontology --lens custom
 ```
 
-`--show-run`은 로컬 `runs/` 아래의 query slug, `latest` symlink, 전체 run id, 또는 run 디렉터리를 받아 `manifest.json`, `report.md`, artifact 목록을 빠르게 출력한다. 파일을 열지는 않고 경로와 요약만 보여준다.
+Lens는 focus area, prompt, ontology directive, recon client 조합을 정의할 수 있습니다.
 
-### Run 무결성 검증
+## 7. 로컬 DB 조회
 
-```bash
-uv run omni --verify-run exodus-3-19-20
-uv run omni --verify-run exodus-3-19-20/latest
-uv run omni --verify-run exodus-3-19-20/MOCK-20260519T094523Z
-```
-
-`--verify-run`은 `manifest.json`의 `artifact_manifest`를 기준으로 현재 artifact 파일의 존재 여부, byte size, sha256을 다시 계산한다. 누락 또는 변조가 감지되면 non-zero exit code로 실패한다. legacy run처럼 `artifact_manifest`가 없는 경우도 검증 실패로 처리된다.
-
-### 대화형 설정
-
-```bash
-uv run omni --setup
-```
-
-대화형 프롬프트로 `.env` 값을 입력한다. 빈칸으로 넘기면 기존 값을 유지하거나 생략한다.
-
-### Recon 기본 실행
-
-```bash
-uv run omni "Exodus 3:19-20 reception history" --lens theology
-```
-
-동작:
-
-1. 렌즈 설정에서 recon client 목록을 읽는다.
-2. API/검색 클라이언트를 병렬 호출한다.
-3. 후보 논문 digest를 출력한다.
-4. 사용자가 번호를 선택하면 원문 징발로 진행한다.
-5. `q` 또는 잘못된 입력이면 정찰만 저장하고 종료한다.
-
-### 캐시 우회
-
-```bash
-uv run omni "Inflation dynamics" --lens economics --no-cache
-```
-
-기본 ReconCache TTL은 24시간이다. `--no-cache`를 쓰면 캐시를 무시하고 fresh 호출을 시도한다.
-
-### Forensic Gate 포함
-
-```bash
-uv run omni "Pauline justification ethics" --lens theology --forensic
-```
-
-`--forensic`은 recon 후보에 대해 DOI 문법, DOI resolve, URL liveness를 확인한다. error finding이 붙은 후보는 HITL 후보에서 차단된다. 결과는 `forensic.json`과 `manifest.json`에 기록된다.
-
-### Snowball 모드
-
-```bash
-uv run omni "ignored query label" --snowball "10.1234/example.doi"
-```
-
-키워드 검색 대신 OpenAlex 기반 인용 네트워크 정찰을 수행한다. `query` 인자는 run 이름/메타데이터 용도로 남는다.
-
-### KCI OAI-PMH 수확 모드
-
-```bash
-uv run omni "ignored query label" --module recon --kci-harvest ARTI
-# set 선택: ARTI(일반 논문) | ARTI_CONF(학술대회) | JOUR(학술지)
-```
-
-무키 표준 OAI-PMH(`open.kci.go.kr/oai/request`, `oai_dc`)로 KCI 메타데이터를 set 단위로 수확한다. OAI-PMH는 키워드 검색이 아니라 수확 프로토콜이라 `query` 인자는 run 메타데이터 용도로만 남는다. `resumptionToken` 페이지네이션을 따르며(상한 `MAX_PAGES=50`), 동시에 `--snowball`을 줘도 `--kci-harvest`가 우선한다. 상세 동작은 §6 참조.
-
-### 온톨로지 단독 실행
-
-```bash
-uv run omni ./paper.md --module ontology --lens general --mock
-```
-
-문서 파일 경로가 존재하면 파일 내용을 읽고, 존재하지 않으면 입력 문자열 자체를 분석 대상으로 사용한다. `--mock`을 붙이면 API 키 없이 구조적 파이프라인과 AuditGate를 점검할 수 있다.
-
-### 렌즈 브리핑 스캐폴드
-
-```bash
-uv run omni ./paper.md --module analyze --lens theology
-```
-
-현재 LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니다. 대신 렌즈 focus/prompt와 실제 원문 문단 window를 묶은 source-bound briefing scaffold를 출력하고, 같은 내용을 해당 run의 `lens_brief.md` artifact로 저장한다. 이 출력은 후속 분석 준비용이며, 모델이 새 통찰을 생성했다고 간주하면 안 된다.
-
-실 LLM 분석 MVP를 함께 생성하려면 명시적으로 `--llm-analysis`를 붙인다.
-
-```bash
-uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-analysis
-```
-
-이 모드는 `ANTHROPIC_API_KEY`와 `anthropic` optional extra가 필요하다. 결과는 `lens_analysis.json`과 `lens_analysis.md`로 저장된다. 각 finding은 `paragraph_id`와 verbatim `source_quote`를 포함해야 하며, Gate 3 `LensComplianceAuditor`가 source_quote가 해당 문단에 실제 존재하는지, 렌즈 focus area를 어떻게 다뤘는지, limitations가 기록됐는지 다시 검증한다. Gate 3 결과는 `lens_audit.json`과 manifest의 `lens_audit_passed`에 저장된다. `--mock --llm-analysis`는 네트워크 없이 저장 경로와 grounding 검증만 점검하는 테스트 모드다.
-
-**운용화(operationalization)**: grounding 위반 시 분석기는 구체 오류(어떤 finding의 어떤 quote가 어느 문단에 없는지)를 프롬프트에 피드백해 자동 재시도한다(기본 2회). 시도 횟수와 실제 model·토큰 usage는 manifest `llm_usage`(`analysis`/`critic`, `analysis_attempts`)에 기록된다 — mock 런은 `{"model":"mock","mock":true}`로 낙인되어 실 usage로 위장될 수 없다. 토큰 상한은 `OMNI_LLM_MAX_TOKENS` 환경변수로 조정한다(기본 16000, 최소 1024). 최대 재시도 후에도 grounding이 깨지면 크래시 대신 마지막 리포트를 반환하고 Gate 3가 결정론적으로 실패를 기록한다.
-
-분석 결과에 별도 LLM self-redteaming pass를 붙이려면 `--llm-critic`을 사용한다. 이 옵션은 `--llm-analysis`를 자동 포함한다.
-
-```bash
-uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-critic
-```
-
-critic 결과는 `lens_critic.json`과 `lens_critic.md`로 저장되며, critic 자체의 paragraph/source_quote도 `lens_critic_audit.json`으로 다시 검증된다. manifest에는 `lens_critic_passed`와 `lens_critic_audit_passed`가 기록된다.
-
-### 초안 집필 (draft)
-
-`--module draft`는 원문에서 온톨로지 맵을 추출한 뒤, 그 맵과 문단을 근거로 섹션별 논문 초안을 생성한다.
-
-```bash
-uv run omni ./paper.md --module draft --lens cs --mock            # 오프라인 파이프라인 검증
-uv run --extra llm omni ./paper.md --module draft --lens cs       # 실 LLM 집필
-```
-
-무손실 하네스를 "생성"에 적용하기 위해 **본문(prose)과 주장 원장(claims ledger)을 분리**한다: 본문은 자유 서술하되 모든 사실 주장은 `claims[]`에 등재되어 본문에서 `[C1]` 앵커로 참조되고, 각 claim은 실존 `paragraph_id` + 그 문단의 verbatim `source_quote`에 묶인다. 미해소 긴장은 평탄화하지 않고 `open_tensions`에 보존한다(헌법 §3).
-
-산출물은 `draft.json`(구조화) + `draft.md`(읽기용)이며, `DraftComplianceAuditor`가 claim 앵커 실존·verbatim·본문 앵커 정합을 결정론적으로 검증한 결과를 `draft_audit.json`과 manifest `draft_passed`, report.md의 "Draft Compliance" 섹션에 남긴다. grounding이 깨지면 ScribeAgent가 구체 오류를 피드백해 재시도한다.
-
-### 피어 리뷰 (review)
-
-`--module review`는 생성된 초안(`draft.json`)을 바탕으로 4인 리뷰어 패널과 Chief Editor의 심층 리뷰 과정을 수행한다. 
-
-사용 예시:
-
-```bash
-# 특정 Query의 최신 run을 대상으로 피어 리뷰 실행 (Mock 모드)
-uv run omni "test-query/latest" --module review --mock
-
-# 실 LLM을 사용하여 피어 리뷰 실행
-uv run --extra llm omni "test-query/latest" --module review
-```
-
-**동작 메커니즘**:
-1. **4인 리뷰어 + Chief Editor 패널 구동**: 
-   - **Ella (개념 설계자)**: 학술적 대주제 격상 및 통사적 구조 해부.
-   - **Miranda (논리 전략가)**: 문장 간 응집성(Cohesion) 및 담화 구조 논리 검증.
-   - **Methodologist (방법론자)**: 연구 방법론의 타당성 및 논리적 완결성 평가.
-   - **Devil's Advocate (반대주의자)**: 반론 제기 및 논리적 허점, 한계점 비판.
-   - **Chief Editor (편집장)**: 에이전트 비평을 종합 조율하고 최종 출판 적합성 판정(Pass/Fail) 및 평결 작성.
-2. **결정론적 접지 검증 (Grounding Verify)**:
-   - 각 비평에 포함된 `source_quotes`가 실제 초안 본문에 실존하는지 기계적으로 대조하여 유령 인용을 차단한다.
-   - 마지막 재시도까지 grounding이 실패하면 `review.json`/`review.md`를 생성하지 않고 `blocked_by_review_grounding` 상태와 `failure.json`을 남긴다.
-3. **산출물**:
-   - `review.json`(구조화된 패널 비평 및 평결)과 `review.md`(가독성 있는 비평 리포트)가 저장된다.
-   - manifest에 `review_passed`(편집장 합격 여부)와 `review_score`(최종 평가 점수)가 기록되며, 종합 리포트(`report.md`)에 피어 리뷰 결과가 반영된다.
-
----
-
-## 5. 렌즈와 Recon 클라이언트
-
-렌즈는 `lenses/*.yaml`에 정의된다. 코드가 특정 학문 분야를 직접 결정하지 않고, 렌즈 설정이 recon client 조합을 주입한다.
-
-현재 포함된 렌즈 파일:
-
-- `general.yaml`
-- `theology.yaml`
-- `economics.yaml`
-- `medical.yaml`
-- `humanities.yaml`
-- `cs.yaml`
-
-렌즈 파일에서 중요한 필드:
-
-| 필드 | 의미 |
-|---|---|
-| `name` | 렌즈 표시 이름 |
-| `focus_areas` | 분석 초점 목록 |
-| `analysis_prompt` | 렌즈 분석 프롬프트 |
-| `recon_clients` | Recon에서 사용할 클라이언트 이름 |
-
-알 수 없는 recon client 이름은 경고 후 무시된다. 유효 클라이언트가 하나도 없으면 Crossref가 기본 fallback으로 사용된다.
-
----
-
-## 6. Google Scholar와 원문 징발 동작
-
-### SerpAPI Google Scholar
-
-`SERPAPI_API_KEY`가 있으면 SerpAPI의 `google_scholar` 엔진을 먼저 호출한다.
-
-`SERPAPI_API_KEY`가 없거나, SerpAPI HTTP/네트워크/응답 오류가 명확히 발생하면 Lightpanda 로컬 폴백을 시도한다.
-
-```bash
-OMNI_LIGHTPANDA_BIN=/path/to/lightpanda uv run omni "query" --lens general
-```
-
-주의:
-
-- SerpAPI가 정상 응답을 반환했지만 결과가 0건인 경우에는 정상 무결과일 수 있으므로 Lightpanda를 무조건 재호출하지 않는다.
-- Lightpanda가 없으면 Google Scholar local fallback은 빈 결과를 반환한다.
-- HTML 구조 변경이나 차단으로 파싱 결과가 비어 있을 수 있다.
-
-### 원문 스크래퍼 선택
-
-원문 URL 승인 뒤 `ScraperFactory.detect()`가 먼저 HEAD 요청으로 Content-Type을 확인한다.
-
-| 조건 | 스크래퍼 |
-|---|---|
-| Content-Type이 PDF 또는 URL path가 `.pdf` | `PdfExtractorScraper` |
-| `doi.org`, `sciencedirect`, `kci.go.kr` 등 | `LightpandaScraper` |
-| 그 외 HTML/텍스트 URL | `JinaReaderScraper` |
-
-PDF 추출 우선순위:
-
-1. `OMNI_PDF_EXTRACTOR` 외부 도구
-2. 내장 `pypdf`
-3. 둘 다 실패하면 빈 문자열 반환
-
----
-
-## 7. RunStore 산출물 해석
-
-모든 실행은 `runs/<query-slug>/<timestamp>/` 형태로 저장된다. Mock run은 timestamp 앞에 `MOCK-` prefix가 붙는다.
-
-예시:
-
-```text
-runs/
-├── index.db
-└── exodus-3-19-20/
-    ├── MOCK-20260519T094024Z/
-    ├── 20260519T101010Z/
-    └── latest -> 20260519T101010Z
-```
-
-### `manifest.json`
-
-핵심 메타데이터:
-
-| 필드 | 의미 |
-|---|---|
-| `run_id` | `query-slug/timestamp` 형식 실행 ID |
-| `created_at` | UTC ISO timestamp |
-| `query` | 입력 query 또는 문서 경로 |
-| `lens` | 사용한 렌즈 |
-| `mock` | MockProvider 사용 여부 |
-| `git_commit` | 실행 당시 Git commit |
-| `audit_passed` | AuditGate 통과 여부 |
-| `lens_audit_passed` | `--llm-analysis` 실행 시 Gate 3 LensComplianceAuditor 통과 여부 |
-| `lens_critic_passed` | `--llm-critic` 실행 시 LLM critic 자체의 통과 여부 |
-| `lens_critic_audit_passed` | critic 결과의 paragraph/source_quote grounding 감사 통과 여부 |
-| `review_passed` | `--module review` 실행 시 편집장(Chief Editor)의 출판 합격 판정 여부 |
-| `review_score` | `--module review` 실행 시 편집장의 최종 평가 점수 (0-100) |
-| `status` | 표준 실행 상태. 현재 값: `running`, `completed`, `failed`, `no_papers_found`, `cancelled_by_user`, `invalid_choice`, `scraper_detection_failed`, `scraping_failed`, `analysis_failed`, `unknown` |
-| `recon_cache` | client별 캐시 hit/age 정보 |
-| `artifacts` | 실제 생성된 파일 목록 |
-| `artifact_manifest` | artifact별 `exists`, `bytes`, `sha256` 무결성 정보 |
-
-### `report.md`
-
-사람이 빠르게 읽는 요약 파일이다.
-
-포함 내용:
-
-- executive summary: status, query, lens, mock/live, audit, forensic 상태
-- provenance: run id, 생성 시각, Git commit, run directory
-- artifact index: `digest.json`, `ontology.json`, `audit.json` 등 상대 링크
-- analyze run에서는 `lens_brief.md` 상대 링크
-- `--llm-analysis` 실행 시 `lens_analysis.json`, `lens_analysis.md`, `lens_audit.json` 상대 링크
-- `--llm-critic` 실행 시 `lens_critic.json`, `lens_critic.md`, `lens_critic_audit.json` 상대 링크
-- `--module review` 실행 시 `review.json`, `review.md` 상대 링크 및 패널 평결 내용 반영
-- recon cache provenance: client별 hit/miss와 cache age
-- recon 후보 요약: 저자, venue, citation count, DOI/URL, abstract excerpt
-- ontology node/edge 요약: class, paragraph_id, source_quote excerpt, relation reasoning
-- audit status 및 score
-- audit findings
-- forensic findings
-- lens compliance findings
-- 실패 run의 경우 failure diagnostics: 상태별 가능 원인, 기록된 error message, forensic 차단 수
-
-정밀 재현이나 프로그램 처리에는 `report.md`보다 JSON 파일을 우선 사용한다.
-
-### `paragraphs.json`
-
-`P_0001`, `P_0002` 같은 paragraph ID와 실제 문단 텍스트의 mapping이다. AuditGate는 이 map을 사용해 ontology node의 `paragraph_id`와 `source_quote`를 검증한다.
-
-### `ontology.json`
-
-주요 구조:
-
-| 필드 | 의미 |
-|---|---|
-| `nodes[].id` | 노드 ID |
-| `nodes[].label` | 개념/인물/방법/자료 등 이름 |
-| `nodes[].entity_class` | 범용 entity class |
-| `nodes[].paragraph_id` | 근거 문단 ID |
-| `nodes[].source_quote` | 해당 문단에 실제 존재해야 하는 verbatim 인용 |
-| `edges[].source_id` | 출발 노드 |
-| `edges[].target_id` | 도착 노드 |
-| `edges[].predicate` | 관계 predicate |
-| `edges[].reasoning` | 관계 근거 설명 |
-| `edges[].source_quote` | 원문에 실제 존재해야 하는 관계 근거 인용 |
-
----
-
-## 8. Audit와 Forensic Gate
-
-### AuditGate
-
-AuditGate는 화려한 답변을 평가하는 LLM judge가 아니라 기계적 대조 계층이다.
-
-검사 항목:
-
-- self-loop edge
-- dangling edge
-- weak reasoning
-- orphan node
-- paragraph manifest 존재 여부
-- node paragraph_id 실존 여부
-- node source_quote가 해당 문단에 실제 포함되는지
-- edge source_quote가 원문 corpus에 실제 포함되는지
-- source_quote가 너무 짧거나 너무 길어 검증력이 약하지 않은지
-- 여러 node/edge가 같은 source_quote를 반복 재사용하지 않는지
-- edge source_quote가 source/target node의 문단 중 하나에 연결되는지
-
-점수 계산:
-
-- error 1개당 25점 감점
-- warning 1개당 10점 감점
-- error가 하나라도 있으면 `passed=false`
-- warning만 있으면 score가 낮아져도 `passed=true`일 수 있다.
-
-### ForensicAuditor
-
-`--forensic` 옵션을 사용할 때 recon 후보에 대해 작동한다.
-
-검사 항목:
-
-- DOI 문법
-- DOI resolve 여부
-- URL HEAD 요청 liveness
-
-error finding에서 `source_ref`가 `paper[<idx>]` 형식이면 해당 후보는 HITL 선택 목록에서 차단된다.
-
----
-
-## 9. 로컬 DB 조회
-
-실행 이력은 `runs/index.db`에 저장된다. 간단 조회는 helper CLI를 사용한다.
-
-전체 목록:
+Run metadata는 `runs/index.db`에 저장됩니다.
 
 ```bash
 uv run python -m omni_academic.store.query_db
-```
-
-렌즈 필터:
-
-```bash
-uv run python -m omni_academic.store.query_db economics
-```
-
-렌즈 이름은 하드코딩 목록이 아니라 `lenses/*.yaml`에서 읽는다.
-
-쿼리 문자열 부분 검색:
-
-```bash
-uv run python -m omni_academic.store.query_db "Exodus"
-```
-
-직접 SQL:
-
-```bash
-uv run python -m omni_academic.store.query_db "SELECT * FROM runs WHERE mock = 0 AND audit_passed = 1"
-```
-
-직접 SQL은 `SELECT`로 시작하는 단일 조회문만 의도한다. 운영상 쓰기/변경 목적의 SQL은 사용하지 않는다.
-
-자주 쓰는 필터:
-
-```bash
-# audit 통과 + live run만 최신 10건
-uv run python -m omni_academic.store.query_db --passed --live --limit 10
-
-# 최신 run 1건을 JSON으로 출력
 uv run python -m omni_academic.store.query_db --latest --json
-
-# 특정 키워드 + mock run만 조회
-uv run python -m omni_academic.store.query_db "Exodus" --mock
-
-# DB 경로를 명시해 조회
-uv run python -m omni_academic.store.query_db --db runs/index.db --failed
+uv run python -m omni_academic.store.query_db theology --passed
+uv run python -m omni_academic.store.query_db --status blocked_by_audit
 ```
 
-필터 옵션:
+주요 필터:
 
 | 옵션 | 의미 |
 |---|---|
-| `--passed` | `audit_passed = 1` |
-| `--failed` | `audit_passed = 0` |
-| `--mock` | `mock = 1` |
-| `--live` | `mock = 0` |
-| `--latest` | 최신 1건만 조회 |
-| `--limit N` | 최대 N건 조회 |
-| `--json` | 표 대신 JSON 배열 출력 |
-| `--db PATH` | 기본 `runs/index.db` 대신 다른 DB 조회 |
-| `--status VALUE` | 표준 `status` 값으로 조회. 오타 값은 argparse 단계에서 거부 |
-| `--forensic-passed` | `forensic_passed = 1` |
-| `--forensic-failed` | `forensic_passed = 0` |
+| `--passed` / `--failed` | `audit_passed` 기준 |
+| `--mock` / `--live` | mock mode 기준 |
+| `--status VALUE` | run status 기준 |
+| `--latest` | 최신 run 1건 |
+| `--limit N` | 출력 개수 제한 |
+| `--json` | JSON 출력 |
 
-새 run이 finalize되면 `runs/index.db`는 자동으로 `status`, `forensic_passed`, `artifacts_count` 컬럼을 보유하도록 마이그레이션된다. 기존 legacy DB에 아직 해당 컬럼이 없다면 `--status`와 forensic 필터는 사용할 수 없다.
+## 8. 문제 해결
 
----
+### 후보 논문이 없음
 
-## 10. 유지관리와 정리
+```bash
+uv run omni "broader query" --lens general --no-cache
+uv run omni --status
+```
 
-GitHub에 올리면 안 되는 로컬 자료는 `.gitignore`에 등록되어 있다.
+가능한 원인: API key 없음, rate limit, query가 너무 좁음, 빈 결과 cache, client 장애.
 
-무시되는 주요 경로:
+### 원문 스크래핑 실패
+
+```bash
+uv run omni --status
+```
+
+대응:
+
+- 브라우저 렌더링이 필요하면 `OMNI_LIGHTPANDA_BIN` 설정
+- PDF 추출이 어렵다면 `OMNI_PDF_EXTRACTOR` 설정
+- 다른 source URL 시도
+
+### Ontology 추출 실패
+
+파이프라인 점검:
+
+```bash
+uv run omni ./paper.md --module ontology --mock
+```
+
+Live mode:
+
+```bash
+uv run --extra llm omni ./paper.md --module ontology
+```
+
+`ANTHROPIC_API_KEY`와 `llm` extra를 확인합니다.
+
+### Review가 `review.json`을 만들지 않음
+
+`manifest.json`과 `failure.json`을 확인합니다. status가 `blocked_by_review_grounding`이면 review가 draft에 없는 문구를 인용하려 한 것입니다. 이는 fail-closed 동작입니다.
+
+## 9. 유지관리
+
+Git에서 제외되는 로컬 경로:
 
 - `.env`
 - `.venv/`
@@ -563,121 +309,29 @@ GitHub에 올리면 안 되는 로컬 자료는 `.gitignore`에 등록되어 있
 - `runs/`
 - `handoff/`
 - `scratch/`
-- `.DS_Store`
-- `__pycache__/`
-
-로컬에 남겨도 되는 자료:
-
-- `runs/`: 실행 산출물과 report
-- `handoff/`: 피어리뷰/인수인계 문서
-- `.env`: 로컬 API 키와 경로 설정
-- `.cache/`: recon 응답 캐시
-
-정리해도 되는 생성물:
-
-- `.DS_Store`
 - `.pytest_cache/`
-- 프로젝트 코드/테스트 아래의 `__pycache__/`
+- `__pycache__/`
+- `.DS_Store`
+
+정리해도 되는 파일:
+
+```bash
+find . -path './.venv' -prune -o -name '__pycache__' -type d -prune -exec rm -rf {} +
+rm -rf .pytest_cache
+```
 
 주의:
 
-- `.env`는 삭제하면 로컬 설정이 사라진다.
-- `runs/index.db`는 삭제하면 실행 이력 조회가 사라진다.
-- `runs/<query>/latest`는 symlink라 삭제해도 다음 실행 때 다시 생길 수 있지만, 수동 삭제는 보통 필요 없다.
+- `.env`는 로컬 설정입니다.
+- `runs/`는 실행 산출물입니다.
+- `.cache/`는 recon cache입니다.
 
----
-
-## 11. 문제 해결
-
-### `검색된 논문이 없습니다`
-
-가능한 원인:
-
-- 네트워크 오류
-- lens의 recon client가 빈 결과 반환
-- SerpAPI key 없음 + Lightpanda 없음
-- API rate limit
-- 캐시가 빈 결과를 보관 중
-
-대응:
+## 10. 개발 검증
 
 ```bash
-uv run omni "query" --lens general --no-cache
-uv run omni --status
+uv run ruff check
+uv run python -m pytest -q
 ```
 
-### 원문 스크래핑 실패
+push 전에는 두 명령을 실행하고 `git status --short`를 확인합니다.
 
-가능한 원인:
-
-- URL 없음
-- DOI landing page가 브라우저 렌더링 필요
-- Lightpanda 미설정
-- PDF가 스캔 이미지 또는 암호화됨
-- Jina Reader 접근 실패
-
-대응:
-
-```bash
-uv run omni --status
-```
-
-필요하면 `OMNI_LIGHTPANDA_BIN` 또는 `OMNI_PDF_EXTRACTOR`를 설정한다.
-
-### Ontology 추출 불가
-
-가능한 원인:
-
-- 실 LLM provider API key 없음
-- provider 패키지 미설치
-- 원문이 비어 있음
-
-대응:
-
-```bash
-uv run omni ./paper.md --module ontology --mock
-uv run --extra llm omni ./paper.md --module ontology
-```
-
-### 테스트가 실패함
-
-전체 테스트:
-
-```bash
-uv run python -m pytest
-```
-
-특정 파일:
-
-```bash
-uv run python -m pytest tests/test_run_store.py
-```
-
----
-
-## 12. 현재 한계
-
-현재 구현 기준 한계:
-
-- 기본 LensAnalyzer는 실 LLM 해석 리포트 생성기가 아니라 source-bound briefing scaffold를 출력한다. 실 LLM 분석은 `--llm-analysis`로 명시해야 한다.
-- Gate 3의 기본 감사는 deterministic Lens Compliance MVP다.
-- `--llm-critic`은 critic 결과를 저장하고 감사하지만, critic 결과를 바탕으로 자동 재작성하는 수정 루프는 아직 없다.
-- Google Scholar HTML 파싱은 외부 사이트 구조 변화에 취약하다.
-- KCI는 키 가용성에 따라 3경로로 동작하며(Open API 키는 일반 사용자에게 비공개·기관/제한), 전부 부재 시 신학·인문학 렌즈는 OpenAlex+Crossref로 graceful degrade(렌즈 안 깨짐):
-  - **OAI-PMH 수확(권장·무키 표준)**: `uv run omni <q> --module recon --kci-harvest ARTI`(또는 `ARTI_CONF`/`JOUR`). base `https://open.kci.go.kr/oai/request`는 실검증(2026-05) 무인증·`oai_dc` 표준. OAI-PMH는 키워드 검색이 아니라 set 단위 *수확* 프로토콜이라 `BaseAPIClient(search)`를 상속하지 않는 별도 모드(Snowball과 동일 원칙).
-  - **파서**: OAI-PMH 2.0+Dublin Core 표준 경로만 사용(네임스페이스 무력화), 검증된 식별자 체계 `oai:kci.go.kr:ARTI/{artiId}`로 landing URL 구성, 표준 fixture 스냅샷 고정. deleted 레코드·OAI error 봉투 정직 처리. `resumptionToken` 추종(후속 요청은 `verb`+`resumptionToken`만), `MAX_PAGES=50` 상한·토큰 반복 차단·네트워크 실패 시 부분 반환.
-  - **Open API(키 보유 시)**: `KCI_API_KEY` 설정 시 실 `<MetaData>` 구조 검증, 키 누락 시 `resultMsg` 에러봉투 정직 처리.
-  - **httpx POST 웹검색(키워드)**: 키 없으면 실검증된 POST 계약(`poSearchBean.conditionList=KEYALL` + `poSearchBean.keywordList`)으로 직접 호출 — 서버 렌더라 Lightpanda 불필요. GET은 KCI가 무시하고 인기 논문(예: 췌장암/담도암)을 반환하는 버그라 폐기. 응답에 검색어 미반영 시 오염 차단으로 0건 처리. 셀렉터(`a.subject`, `ul.subject-info`의 `poCretDetail` 저자 / `ciSereInfoView` 학술지)는 실 렌더 DOM 캡처로 검증·스냅샷 고정.
-  - **OAI `GetRecord` 보강 브리지**: 웹 후보의 artiId로 OAI-PMH `GetRecord`(표준 verb)를 best-effort 호출해 초록·DOI 등을 보강. 차단·실패 시 웹 필드 유지(graceful, 무날조). `OMNI_KCI_OAI_ENRICH=0`으로 비활성. 이전 GET 버그로 오염된 캐시는 `ReconCache.SCHEMA_VER` 버전 상승으로 자동 무효화(또는 `.cache/recon.sqlite` 삭제).
-- `runs/`와 `.cache/`는 로컬 산출물이며 GitHub에 올리지 않는다.
-
----
-
-## 13. 권장 운영 루틴
-
-1. `uv run omni --status`로 환경을 확인한다.
-2. `uv run omni "query" --lens <lens> --forensic`으로 후보를 정찰한다.
-3. HITL에서 딥다이브할 후보를 고른다.
-4. 원문 징발과 ontology/audit 결과를 `runs/<query>/latest/report.md`에서 확인한다.
-5. JSON 원천 파일이 필요하면 `digest.json`, `ontology.json`, `audit.json`, `manifest.json`을 확인한다.
-6. 변경 후 `uv run python -m pytest`로 회귀를 확인한다.
