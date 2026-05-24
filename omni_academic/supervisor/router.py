@@ -24,6 +24,7 @@ class ModuleType(str, Enum):
     RECON = "recon"
     ONTOLOGY = "ontology"
     ANALYZE = "analyze"
+    DRAFT = "draft"
 
 
 class RouterRequest(BaseModel):
@@ -72,6 +73,23 @@ def _make_provider(use_mock: bool):
         return MockProvider()
     from omni_academic.llm.provider import AnthropicProvider
     return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+
+
+def _lens_ontology_directive(lens: str) -> str:
+    """렌즈의 도메인 온톨로지 지시(예: 신학 아포리아 보존)를 best-effort 로드.
+
+    렌즈가 없거나 directive가 없으면 빈 문자열 → 코어는 도메인-중립 기본 동작.
+    """
+    from omni_academic.config.lens import (
+        LensNotFoundError,
+        get_ontology_directive,
+        load_lens,
+    )
+
+    try:
+        return get_ontology_directive(load_lens(lens))
+    except LensNotFoundError:
+        return ""
 
 
 def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
@@ -218,7 +236,7 @@ class OmniSupervisorRouter:
                     snowball=request.snowball, kci_harvest=request.kci_harvest,
                 )
             elif request.target_module == ModuleType.ONTOLOGY:
-                self._run_ontology(store, _resolve_document(request.query))
+                self._run_ontology(store, _resolve_document(request.query), request.lens)
             elif request.target_module == ModuleType.ANALYZE:
                 self._run_analyze(
                     store,
@@ -227,6 +245,8 @@ class OmniSupervisorRouter:
                     llm_analysis=request.llm_analysis,
                     llm_critic=request.llm_critic,
                 )
+            elif request.target_module == ModuleType.DRAFT:
+                self._run_draft(store, _resolve_document(request.query), request.lens)
             if store._meta.get("status") == run_status.RUNNING:
                 store.note("status", run_status.COMPLETED)
         except Exception as e:
@@ -344,9 +364,9 @@ class OmniSupervisorRouter:
 
         store.write_fulltext(markdown_text)
         self.console.print("[bold green]원문 징발 성공! Ontology Extractor로 전달합니다...[/bold green]\n")
-        self._run_ontology(store, markdown_text)
+        self._run_ontology(store, markdown_text, lens)
 
-    def _run_ontology(self, store: RunStore, target_document: str):
+    def _run_ontology(self, store: RunStore, target_document: str, lens: str = "general"):
         from omni_academic.audit.gate import AuditGate
         from omni_academic.ontology.extractor import OntologyExtractor
         from omni_academic.text.paragraphs import assign_paragraph_ids
@@ -356,7 +376,9 @@ class OmniSupervisorRouter:
 
         try:
             extractor = OntologyExtractor(llm_provider=_make_provider(self.use_mock))
-            ontology_map = extractor.extract(annotated)
+            ontology_map = extractor.extract(
+                annotated, directive=_lens_ontology_directive(lens)
+            )
         except (ValueError, NotImplementedError, RuntimeError) as e:
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
@@ -458,6 +480,66 @@ class OmniSupervisorRouter:
                 "(LLM 분석은 --llm-analysis 필요)[/bold yellow]"
             )
 
+    def _run_draft(self, store: RunStore, target_document: str, lens: str):
+        from omni_academic.audit.draft_gate import DraftComplianceAuditor
+        from omni_academic.audit.gate import AuditGate
+        from omni_academic.config.lens import LensNotFoundError
+        from omni_academic.draft.scribe import ScribeAgent
+        from omni_academic.ontology.extractor import OntologyExtractor
+        from omni_academic.text.paragraphs import assign_paragraph_ids
+
+        self.console.print(
+            f"\n[bold magenta]✍️ [Drafting Module] (렌즈: {lens})[/bold magenta]"
+        )
+        annotated, manifest = assign_paragraph_ids(target_document)
+        store.write_paragraphs(manifest)
+
+        # 1) 온톨로지 추출 (초안의 근거 골격)
+        try:
+            ontology_map = OntologyExtractor(
+                llm_provider=_make_provider(self.use_mock)
+            ).extract(annotated, directive=_lens_ontology_directive(lens))
+        except (ValueError, NotImplementedError, RuntimeError) as e:
+            store.note("status", run_status.ANALYSIS_FAILED)
+            self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
+            return
+        self._last_ontology = ontology_map
+        store.write_ontology(ontology_map)
+        store.write_audit(
+            AuditGate().verify_ontology(ontology_map, paragraph_manifest=manifest)
+        )
+
+        # 2) ScribeAgent 집필 (grounding 재시도 루프)
+        scribe = ScribeAgent()
+        provider = _make_provider(self.use_mock)
+        try:
+            draft = scribe.build_draft(target_document, ontology_map, lens, provider)
+        except LensNotFoundError as e:
+            store.note("status", run_status.ANALYSIS_FAILED)
+            self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
+            return
+        store.note("llm_usage", {
+            "draft": provider.last_usage,
+            "draft_attempts": scribe.last_attempts,
+        })
+        store.write_draft(draft, scribe.render_draft(draft))
+
+        # 3) Draft Compliance Gate (claims ledger 결정론적 감사)
+        draft_audit = DraftComplianceAuditor().verify(
+            draft, target_document, ontology_map
+        )
+        store.write_draft_audit(draft_audit)
+        if draft_audit.passed:
+            self.console.print(
+                f"   => [bold green]Draft Compliance 통과 "
+                f"(Score: {draft_audit.score}/100) → draft.json, draft.md[/bold green]"
+            )
+        else:
+            self.console.print(
+                f"   => [bold red]Draft Compliance 반려 "
+                f"(Score: {draft_audit.score}/100)[/bold red]"
+            )
+
 
 def main():
     parser = argparse.ArgumentParser(description="Omni-Academic Supervisor Router")
@@ -467,7 +549,7 @@ def main():
     )
     parser.add_argument("--lens", type=str, default="general", help="장착할 도메인 렌즈 (예: cs, medical)")
     parser.add_argument(
-        "--module", type=str, choices=["recon", "ontology", "analyze"],
+        "--module", type=str, choices=["recon", "ontology", "analyze", "draft"],
         default="recon", help="가동할 타겟 모듈",
     )
     parser.add_argument(

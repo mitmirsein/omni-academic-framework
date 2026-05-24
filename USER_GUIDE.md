@@ -250,6 +250,19 @@ uv run --extra llm omni ./paper.md --module analyze --lens theology --llm-critic
 
 critic 결과는 `lens_critic.json`과 `lens_critic.md`로 저장되며, critic 자체의 paragraph/source_quote도 `lens_critic_audit.json`으로 다시 검증된다. manifest에는 `lens_critic_passed`와 `lens_critic_audit_passed`가 기록된다.
 
+### 초안 집필 (draft)
+
+`--module draft`는 원문에서 온톨로지 맵을 추출한 뒤, 그 맵과 문단을 근거로 섹션별 논문 초안을 생성한다.
+
+```bash
+uv run omni ./paper.md --module draft --lens cs --mock            # 오프라인 파이프라인 검증
+uv run --extra llm omni ./paper.md --module draft --lens cs       # 실 LLM 집필
+```
+
+무손실 하네스를 "생성"에 적용하기 위해 **본문(prose)과 주장 원장(claims ledger)을 분리**한다: 본문은 자유 서술하되 모든 사실 주장은 `claims[]`에 등재되어 본문에서 `[C1]` 앵커로 참조되고, 각 claim은 실존 `paragraph_id` + 그 문단의 verbatim `source_quote`에 묶인다. 미해소 긴장은 평탄화하지 않고 `open_tensions`에 보존한다(헌법 §3).
+
+산출물은 `draft.json`(구조화) + `draft.md`(읽기용)이며, `DraftComplianceAuditor`가 claim 앵커 실존·verbatim·본문 앵커 정합을 결정론적으로 검증한 결과를 `draft_audit.json`과 manifest `draft_passed`, report.md의 "Draft Compliance" 섹션에 남긴다. grounding이 깨지면 ScribeAgent가 구체 오류를 피드백해 재시도한다.
+
 ---
 
 ## 5. 렌즈와 Recon 클라이언트

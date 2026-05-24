@@ -16,10 +16,11 @@ status: Draft/V3-Palantir
 > [!WARNING]
 > **Status: Prototype (v0.6.0).** 아래 문서는 목표 아키텍처(비전)를 서술하며, 일부는 미구현 청사진이다.
 > - **구현됨** (카테고리별):
->   - **Recon 클라이언트**: arXiv, Crossref, EconBiz(경제학), PubMed(의학), OpenAlex(신학·인문학), Semantic Scholar, SerpAPI 기반 Google Scholar. config-driven 렌즈 레지스트리.
+>   - **Recon 클라이언트**: arXiv, DBLP(CS), Crossref, EconBiz(경제학), PubMed(의학), OpenAlex(신학·인문학), Semantic Scholar, SerpAPI 기반 Google Scholar. config-driven 렌즈 레지스트리.
 >   - **KCI 3경로(정직)**: (1) 무키 표준 OAI-PMH 수확 `--kci-harvest ARTI|ARTI_CONF|JOUR` — base `open.kci.go.kr/oai/request`(실검증 2026-05: 무인증·`oai_dc` 표준), OAI-PMH 2.0+DC 표준만 파싱·식별자 체계 검증·실 fragment 스냅샷, `resumptionToken` 페이지네이션(상한 `MAX_PAGES=50`). (2) `KCI_API_KEY` 있으면 Open API(실 `<MetaData>` 구조 검증·에러봉투 정직). (3) **키워드 검색은 httpx POST 웹검색** — 실검증된 `poSearchBean.conditionList=KEYALL`+`poSearchBean.keywordList` 계약(GET은 검색어 무시→인기 논문 반환 버그라 폐기), 응답에 검색어 미반영 시 오염 차단 0건 처리, **artiId→OAI `GetRecord` best-effort enrichment**(실패 시 웹 필드 유지, `OMNI_KCI_OAI_ENRICH=0`로 비활성). 전부 부재 시 정직한 빈 결과 → 신학·인문학 렌즈는 OpenAlex+Crossref로 degrade.
 >   - **Audit Gates**: Ontology Paragraph-ID 부여 + AuditGate paragraph grounding(환각 차단); Gate 2 ForensicAuditor(DOI 문법+실존 ping·URL liveness·유령 인용 차단); Gate 3 LensComplianceAuditor MVP(렌즈 분석의 paragraph/source_quote/focus coverage 감사); 선택형 LLM self-redteaming critic(`--llm-critic`, `lens_critic.json/md`).
 >   - **LLM 분석**: 실 AnthropicProvider(강제 tool-use+prompt caching); 선택형 source-bound Lens Analysis(`--llm-analysis`, `lens_analysis.json/md`, `lens_audit.json`, source_quote 재검증) — 운용화: grounding 위반 시 구체 오류 피드백 self-correcting 재시도 루프, `OMNI_LLM_MAX_TOKENS` 토큰 예산, 실 model/usage·재시도 횟수를 manifest `llm_usage`에 기록(mock은 낙인되어 실 usage 위장 불가); source-bound Lens Brief(`lens_brief.md`).
+>   - **집필(Draft)**: `--module draft` — 온톨로지+문단 근거 기반 섹션별 초안 생성(`ScribeAgent`). 본문(prose)과 주장 원장(claims ledger) 분리로 무손실 하네스를 생성에 적용(모든 claim이 실존 `paragraph_id`+verbatim `source_quote`에 묶임, `[C#]` 앵커, `open_tensions` 보존); `DraftComplianceAuditor`가 claim/앵커 정합을 결정론적 감사(`draft.json/md`, `draft_audit.json`, manifest `draft_passed`).
 >   - **스크래퍼**: LightpandaScraper(바이너리 subprocess — `OMNI_LIGHTPANDA_BIN` env/PATH, 하드코딩 제거, 미설정 시 정직하게 빈 문자열); PdfExtractorScraper(Content-Type 분기·pypdf 코어/`OMNI_PDF_EXTRACTOR` override·실패 시 정직); 외부 툴 경로 통일 규약(`omni_academic/config/tools.resolve_tool`: `OMNI_*` env > PATH > ""); HITL→Scraper→Ontology→Audit E2E.
 >   - **영속화·모드**: RunStore(`runs/<id>/` typed JSON + 자기검증 manifest[mock 낙인·git commit·audit 평결·cache provenance·artifact sha256] + SQLite 인덱스; `--verify-run` 무결성 검증); ReconCache(별도 `.cache/recon.sqlite` 24h TTL·`--no-cache` 바이패스·manifest 적중 기록); Snowball(`--snowball <DOI>` OpenAlex 인용그래프 — `BaseAPIClient` 미오염 독립 모드).
 >   - **운영·품질**: 시스템 진단 & 자동 셋업 대시보드(`--status`/쿼리 생략 시 `.env` 자동 생성·API 키/도구 유효성 UI); CI 품질 게이트(GitHub Actions: `ruff check`[E9/F/I] + 오프라인 pytest + byte-compile, `skills/`는 legacy 제외, scholar-browser extra로 Scholar 파서 snapshot까지 게이트); 실패 진단 artifact(`failure.json`: stage/scraper/HTTP status/content-type/raw excerpt, report.md 링크); Google Scholar 파서 snapshot 회귀 가드.
@@ -31,14 +32,16 @@ status: Draft/V3-Palantir
 본 프레임워크는 논문을 선형적으로 '읽는' 도구가 아니라, 다차원 정보망으로 '해체하고 장악하는' 팔란티어(Palantir)식 정보전 엔진을 지향합니다.
 1. **Ontology-First (선 지식망 구축)**: 텍스트를 분석하기 전, 텍스트 내의 지형도(Entity-Relation)를 먼저 장악하여 할루시네이션의 여지를 원천 차단합니다.
 2. **무자비한 감사(Audit) 시스템**: 화려한 생성 능력보다 기계적 대조와 무결성 사수를 최우선으로 삼아, 프레임워크의 가장 '빛나는 지점'으로 만듭니다.
+3. **아포리아 보존 (Fidelity to Aporia)**: 원문의 환원불가 역설·논리적 긴장을 임의로 평탄화하거나 해소하지 않습니다. 양극을 별도 노드로 보존하고 `in_tension_with` 술어(경합·배타인 `conflicts_with`와 구분)로 묶습니다. 도메인별 강조(예: 양성론의 *vere Deus / vere homo*)는 코어가 아니라 렌즈 어댑터(`lenses/theology.yaml`)가 주입합니다 — 코어 엔진은 도메인 중립.
 
 ## 2. 아키텍처: 온디맨드(On-Demand) 유연성 구조 (Simple & Soft)
 모든 단계를 강제로 밟아야 하는 무겁고 취약한 '폭포수 파이프라인'을 폐기합니다. 단일 진입점인 수퍼바이저(Supervisor)는 사용자의 요구 수준에 따라 각 모듈을 **레고 블록처럼 독립적으로 골라 쓰며(On-Demand)** 코드를 극도로 단순화합니다.
 
 ### 🧩 독립적 모듈 풀 (Tool Pool)
 1. **`Recon Engine`**: 무겁게 원문을 다 파싱하지 않고, 가볍게 API와 메타데이터만 긁어와 다이제스트를 보고합니다. (가장 가벼운 정찰)
-2. **`Ontology Extractor`**: 전체 분석이 부담스러울 때, 원문에서 핵심 뼈대인 지식망(Entity-Relation) 지형도만 JSON으로 빠르게 뽑아냅니다.
+2. **`Ontology Extractor`**: 전체 분석이 부담스러울 때, 원문에서 핵심 뼈대인 지식망(Entity-Relation) 지형도만 JSON으로 빠르게 뽑아냅니다. 환원불가 역설은 `in_tension_with`로 보존합니다(평탄화 금지).
 3. **`Lens Analyzers` (`Epistemic` 등)**: 온톨로지 맵과 원문을 동시에 넘겨받아(의미 탈락 방지), 사용자가 지목한 특정 지점만 정밀 타격합니다.
+4. **`Scribe Agent` (집필)**: 온톨로지 맵과 문단 근거를 받아 섹션별 초안을 생성하되, 모든 사실 주장을 실존 문단·verbatim 인용에 묶는 주장 원장(claims ledger)으로 환각을 차단합니다.
 
 ### 🌊 부드러운 점진적 워크플로우 (Soft & Progressive)
 - **Simple is Best**: 사용자가 "이 저널 이번 호 동향만 브리핑해"라고 하면 가볍게 Recon만 하고 멈춥니다. 
@@ -59,6 +62,7 @@ status: Draft/V3-Palantir
 * **Gate 1: I/O Envelope Audit (구조 감사)** — `[부분 구현]` paragraph grounding(노드 paragraph_id 원문 실존), self-loop/dangling/orphan 검증. 수식·토큰 비율 검증은 `[BLUEPRINT]`.
 * **Gate 2: Forensic Search Audit (실증 감사)** — `[구현]` `ForensicAuditor`: DOI 문법 검증 + DOI/URL HEAD 실존 ping으로 '유령 인용/가짜 DOI/죽은 URL' 차단.
 * **Gate 3: Lens Compliance Audit (렌즈 감사)** — `[MVP 구현]` `LensComplianceAuditor`: LLM lens analysis의 paragraph_id/source_quote grounding, focus_area coverage, limitations 존재 여부를 검증. `--llm-critic`은 별도 LLM self-redteaming pass를 실행하고 critic 자체도 grounding 감사한다.
+* **Draft Compliance Audit (집필 감사)** — `[구현]` `DraftComplianceAuditor`: 생성된 초안의 모든 claim이 실존 문단·verbatim 인용·선언된 본문 `[C#]` 앵커에 묶였는지, 그리고 미해소 긴장이 `open_tensions`로 보존됐는지 결정론적으로 검증.
 
 ## 4. 실행 마일스톤 (Milestones)
 
@@ -76,6 +80,12 @@ status: Draft/V3-Palantir
   - 렌즈 지침 충족 여부를 별도 critic pass로 자동 비판하고 critic quote도 grounding 감사.
 - [ ] **Step 5c: Critic 기반 자동 수정 루프 `[BLUEPRINT]`**
   - critic 결과를 분석 재생성/수정 프롬프트로 되먹이는 bounded retry 구현.
+- [x] **Step 6: 집필 모듈 (Drafting)**
+  - `--module draft` ScribeAgent + DraftComplianceAuditor. 본문/주장 원장 분리로 무손실 하네스를 생성에 적용(grounding 재시도 루프 포함).
+- [x] **Step 7: 아포리아 보존 술어**
+  - `in_tension_with` 술어 + 렌즈 주입 directive로 환원불가 역설을 평탄화 없이 1급 보존(코어 도메인 중립).
+- [x] **Step 8: 공유용 독립 패키징**
+  - `omni_academic` 패키지화 + 렌즈 동봉으로 `uv tool install` 깨끗한 전역 설치(개인 vault/번역 파이프라인 결합 제거).
 
 ## 🔧 설치 (Installation)
 

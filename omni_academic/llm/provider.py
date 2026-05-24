@@ -75,6 +75,52 @@ class MockProvider(BaseLLMProvider):
                 "critiques": [],
             })
 
+        if schema.__name__ == "DraftReport":
+            blocks = re.findall(r"\[(P_\d+)\]\s*(.+?)(?=\n\[P_\d+\]|\Z)", prompt, re.S)
+            if not blocks:
+                return schema.model_validate({
+                    "title": "Mock Draft (no source paragraphs found)",
+                    "thesis": "MockProvider found no [P_XXXX] anchors to ground a draft.",
+                    "sections": [],
+                    "claims": [],
+                    "open_tensions": [
+                        "MockProvider draft is a pipeline check, not real synthesis."
+                    ],
+                })
+            claims = [
+                {
+                    "claim_id": f"C{i}",
+                    "paragraph_id": pid,
+                    "source_quote": text.strip()[:80],
+                    "node_id": None,
+                }
+                for i, (pid, text) in enumerate(blocks[:3], 1)
+            ]
+            anchors = " ".join(f"[{c['claim_id']}]" for c in claims)
+            sections = [
+                {
+                    "section_type": "introduction",
+                    "heading": "Introduction",
+                    "body": f"Mock introduction grounded in source anchors {anchors}.",
+                    "claim_ids": [c["claim_id"] for c in claims],
+                },
+                {
+                    "section_type": "conclusion",
+                    "heading": "Conclusion",
+                    "body": f"Mock conclusion restating the grounded claims {anchors}.",
+                    "claim_ids": [c["claim_id"] for c in claims],
+                },
+            ]
+            return schema.model_validate({
+                "title": "Mock Source-Bound Draft",
+                "thesis": "Mock thesis derived only from real paragraph anchors.",
+                "sections": sections,
+                "claims": claims,
+                "open_tensions": [
+                    "MockProvider draft is a pipeline check, not real synthesis."
+                ],
+            })
+
         from omni_academic.ontology.extractor import (
             Edge,
             EntityClass,
@@ -135,7 +181,12 @@ class AnthropicProvider(BaseLLMProvider):
         "paragraph_id. If a claim has no [P_XXXX] anchor, do not emit a node "
         "for it.\n"
         "2. Do not flatten, summarize, or resolve logical tensions/aporia in "
-        "the source. Preserve contradictory poles as separate nodes/edges.\n"
+        "the source. Preserve contradictory poles as separate nodes/edges. When "
+        "two affirmations are BOTH held as true and form an irreducible paradox "
+        "(not a competing claim where one defeats the other), keep both poles as "
+        "separate nodes and connect them with the `in_tension_with` predicate — "
+        "never collapse them into one node or resolve the paradox. Use "
+        "`conflicts_with` only for genuinely competing/incompatible positions.\n"
         "3. Do not inject domain-specific terminology or citation rules of "
         "your own; reflect only what the text states.\n"
         "4. Every edge.reasoning must quote or tightly paraphrase the "
@@ -158,6 +209,22 @@ class AnthropicProvider(BaseLLMProvider):
         "3. Do not add claims, contexts, citations, or domain terminology not "
         "grounded in the supplied text.\n"
         "4. Preserve unresolved tensions and limitations.\n"
+        "Return the result solely by calling the provided tool."
+    )
+
+    DRAFT_SYSTEM_INSTRUCTION = (
+        "You are a domain-agnostic academic scribe. Write a paper draft grounded "
+        "ONLY in the supplied ontology map and source paragraphs. Hard rules:\n"
+        "1. Prose body is allowed, but every factual claim MUST be registered in "
+        "claims[] and referenced in the body with its [C#] anchor.\n"
+        "2. Every claim.paragraph_id MUST be a real [P_XXXX] marker from the "
+        "source, and claim.source_quote MUST be an exact verbatim substring of "
+        "that paragraph (do not paraphrase, normalize, or translate).\n"
+        "3. If a claim maps to an ontology node, set claim.node_id to a real node "
+        "id from the supplied map.\n"
+        "4. Do not introduce facts, citations, or figures absent from the source. "
+        "Do not flatten contradictions — record unresolved tensions in "
+        "open_tensions.\n"
         "Return the result solely by calling the provided tool."
     )
 
@@ -187,11 +254,10 @@ class AnthropicProvider(BaseLLMProvider):
 
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         tool_name = "emit_structured_output"
-        system_instruction = (
-            self.SYSTEM_INSTRUCTION
-            if schema.__name__ == "OntologyMap"
-            else self.LENS_ANALYSIS_SYSTEM_INSTRUCTION
-        )
+        system_instruction = {
+            "OntologyMap": self.SYSTEM_INSTRUCTION,
+            "DraftReport": self.DRAFT_SYSTEM_INSTRUCTION,
+        }.get(schema.__name__, self.LENS_ANALYSIS_SYSTEM_INSTRUCTION)
         tool = {
             "name": tool_name,
             "description": (

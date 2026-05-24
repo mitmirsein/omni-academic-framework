@@ -156,6 +156,7 @@ class RunStore:
         self._forensic = []
         self._lens_audit = None
         self._lens_critic_audit = None
+        self._draft_audit = None
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -242,6 +243,16 @@ class RunStore:
     def write_lens_brief(self, markdown: str):
         (self.dir / "lens_brief.md").write_text(markdown or "", encoding="utf-8")
         self._artifacts.append("lens_brief.md")
+
+    def write_draft(self, report, markdown: str):
+        self._write_json("draft.json", report)
+        (self.dir / "draft.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("draft.md")
+
+    def write_draft_audit(self, report):
+        self._draft_audit = report
+        self._write_json("draft_audit.json", report)
+        self._meta["draft_passed"] = bool(getattr(report, "passed", False))
 
     def write_lens_analysis(self, report, markdown: str):
         self._write_json("lens_analysis.json", report)
@@ -421,6 +432,19 @@ class RunStore:
                     lines.append(_finding_line(finding))
             else:
                 lines.append("- No lens critic audit findings.")
+
+        if self._draft_audit:
+            passed = _field(self._draft_audit, "passed", False)
+            score = _field(self._draft_audit, "score", 0)
+            findings = _field(self._draft_audit, "findings", []) or []
+            lines.append("\n### Draft Compliance")
+            lines.append(f"- **Status**: {'✅ PASSED' if passed else '❌ FAILED'}")
+            lines.append(f"- **Score**: `{score}/100`")
+            if findings:
+                for finding in findings:
+                    lines.append(_finding_line(finding))
+            else:
+                lines.append("- No draft compliance findings.")
 
         report_path = self.dir / "report.md"
         report_path.write_text("\n".join(lines), encoding="utf-8")

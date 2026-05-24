@@ -24,6 +24,11 @@ class RelationPredicate(str, Enum):
     CORRELATES_WITH = "correlates_with"
     SUPPORTS = "supports"
     CONFLICTS_WITH = "conflicts_with"
+    # 양극이 *동시에 참으로 긍정되는* 환원 불가 역설(아포리아). CONFLICTS_WITH
+    # (경합·배타, 한쪽이 다른 쪽을 무효화)와 구분된다. 헌법 §3: 이런 긴장은
+    # 평탄화/해소하지 말고 양 노드를 보존한 채 이 술어로 묶는다. (도메인 무관:
+    # 신학의 이중 술어, 물리의 파동-입자 이중성 등)
+    IN_TENSION_WITH = "in_tension_with"
     ADDRESSES = "addresses"
     USES_METHOD = "uses_method"
 
@@ -66,12 +71,20 @@ class OntologyExtractor:
         self.console = console
         self.llm_provider = llm_provider
 
-    def extract(self, document_text: str) -> OntologyMap:
+    def extract(self, document_text: str, directive: str = "") -> OntologyMap:
         self.console.print(f"[bold magenta]🕸️ 텍스트에서 Ontology Map(RDF Triples)을 추출 중입니다... (Provider: {self.llm_provider.__class__.__name__})[/bold magenta]")
-        
-        prompt = f"Analyze the following text and return a structured ontology map:\n\n{document_text}"
-        
+
+        prompt = "Analyze the following text and return a structured ontology map."
+        # 도메인 지시(렌즈 어댑터에서 주입). 코어는 도메인 용어를 모른다(헌법 §2):
+        # 신학 등 분야별 아포리아 보존 강조는 lenses/*.yaml 의 ontology_directive 가 싣는다.
+        if directive and directive.strip():
+            prompt += (
+                "\n\nDomain extraction directive (obey; preserve, do not flatten):\n"
+                f"{directive.strip()}"
+            )
+        prompt += f"\n\n{document_text}"
+
         # LLM Provider에 의존하여 Pydantic 모델을 강제 반환받음
         ontology_map = self.llm_provider.generate_structured_output(prompt, OntologyMap)
-        
+
         return ontology_map

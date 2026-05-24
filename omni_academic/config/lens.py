@@ -52,3 +52,12 @@ def get_recon_client_names(lens_cfg: Dict[str, Any]) -> List[str]:
     """렌즈 설정에서 recon 클라이언트 이름 리스트를 반환한다."""
     clients = lens_cfg.get("recon_clients") or []
     return [str(c).strip().lower() for c in clients if str(c).strip()]
+
+
+def get_ontology_directive(lens_cfg: Dict[str, Any]) -> str:
+    """렌즈가 온톨로지 추출에 주입할 도메인 지시(없으면 빈 문자열).
+
+    코어 추출기는 도메인 용어를 모르고(헌법 §2), 분야별 강조(예: 신학의
+    아포리아 보존)는 이 어댑터 필드로만 주입된다.
+    """
+    return str(lens_cfg.get("ontology_directive") or "").strip()

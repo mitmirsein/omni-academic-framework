@@ -12,3 +12,15 @@ focus_areas:
 analysis_prompt: |
   Examine the theological implications, underlying philosophical pre-commitments, and biblical grounding.
   Are there any doctrinal tensions or historical shifts identified?
+ontology_directive: |
+  Theology routinely affirms irreducible paradox (aporia / coincidentia
+  oppositorum). Do NOT flatten, resolve, or discard such tensions.
+  When two affirmations are BOTH confessed as true of the same subject,
+  keep both as separate nodes and connect them with `in_tension_with`
+  (not `conflicts_with`, which implies one defeats the other).
+  Examples to preserve, never collapse:
+  - Christology: "vere Deus, vere homo" (truly God AND truly man) — the two
+    natures are dual predication of one person, not a contradiction to fix.
+  - Trinity: one ousia / three hypostases; already/not-yet eschatology;
+    law/gospel; sovereignty/freedom; hidden/revealed God.
+  Treat such pairs as first-class structure, not noise to be smoothed.
