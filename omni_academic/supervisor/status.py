@@ -38,11 +38,11 @@ def run_setup_wizard():
                     except ValueError:
                         pass
 
-    # 순차적 질문 목록 정의
+    # 순차적 질문 목록 정의. 현재 live LLM 경로는 Anthropic만 사용한다.
+    # OpenAI/Gemini 키는 향후 provider 확장용으로 예약되어 있으므로
+    # setup wizard에서 현재 지원되는 선택지처럼 묻지 않는다.
     questions = [
-        ("ANTHROPIC_API_KEY", "Anthropic API Key (Claude 모델 분석용 필수)", "https://console.anthropic.com/"),
-        ("OPENAI_API_KEY", "OpenAI API Key (ChatGPT 모델 분석 및 본문 가공 - 선택)", "https://platform.openai.com/"),
-        ("GEMINI_API_KEY", "Google Gemini API Key (Gemini 다차원 분석 및 요약 - 선택)", "https://aistudio.google.com/"),
+        ("ANTHROPIC_API_KEY", "Anthropic API Key (기본 live LLM provider: Claude)", "https://console.anthropic.com/"),
         ("SEMANTIC_SCHOLAR_API_KEY", "Semantic Scholar API Key (고속 학술 인용망 - 선택)", "https://www.semanticscholar.org/product/api"),
         ("SERPAPI_API_KEY", "SerpAPI API Key (구글 스콜라 키워드 검색용 - 선택)", "https://serpapi.com/"),
         ("JINA_API_KEY", "Jina Reader API Key (웹/PDF 마크다운 본문 변환 - 선택)", "https://jina.ai/reader/"),
@@ -168,19 +168,19 @@ def run_diagnostics():
         "API Key",
         "ANTHROPIC_API_KEY",
         "[green]Configured (Active)[/green]" if anthropic_key else "[red]Missing (API calls disabled)[/red]",
-        "Claude 모델을 이용한 온톨로지 추출용 (발급: console.anthropic.com)"
+        "기본 live LLM provider: ontology/analyze/draft/review (발급: console.anthropic.com)"
     )
     table.add_row(
         "API Key",
         "OPENAI_API_KEY",
-        "[green]Configured[/green]" if openai_key else "[yellow]Not Configured (Optional)[/yellow]",
-        "ChatGPT 모델을 이용한 본문 가공 및 렌더링용 (발급: platform.openai.com)"
+        "[dim]Configured but reserved[/dim]" if openai_key else "[dim]Reserved (not used)[/dim]",
+        "Future/alternate provider용 예약 키입니다. 기본 live path에서는 사용하지 않습니다."
     )
     table.add_row(
         "API Key",
         "GEMINI_API_KEY",
-        "[green]Configured[/green]" if gemini_key else "[yellow]Not Configured (Optional)[/yellow]",
-        "Gemini 모델을 이용한 다차원 분석 및 요약용 (발급: aistudio.google.com)"
+        "[dim]Configured but reserved[/dim]" if gemini_key else "[dim]Reserved (not used)[/dim]",
+        "Future/alternate provider용 예약 키입니다. 기본 live path에서는 사용하지 않습니다."
     )
     table.add_row(
         "API Key",
@@ -235,7 +235,7 @@ def run_diagnostics():
     if not anthropic_key:
         guide_text.append("[bold red]⚠️ Anthropic API Key가 비어 있습니다.[/bold red]\n- 온톨로지를 실제로 추출하려면 [underline].env[/underline] 파일에 [bold]ANTHROPIC_API_KEY=sk-...[/bold]를 설정하거나,\n- 가짜 목업 환경을 시험하려면 명령어 끝에 [bold]--mock[/bold] 인자를 추가해 실행하십시오.")
     else:
-        guide_text.append("[bold green]✅ API Key 세팅이 완료되었습니다.[/bold green] 실시간 AI 분석 파이프라인 구동이 가능합니다.")
+        guide_text.append("[bold green]✅ 기본 live provider 세팅이 완료되었습니다.[/bold green] Anthropic Claude 기반 실시간 AI 분석 파이프라인 구동이 가능합니다.")
 
     if not lightpanda_bin:
         guide_text.append("\n[bold yellow]💡 Tip: Lightpanda 미설정 상태[/bold yellow]\n- 일반적인 정찰/스크래핑은 Jina Reader API를 통해 우회 동작합니다.\n- 로컬 독립 브라우저 환경이 필요하다면 lightpanda를 설치하고 PATH에 추가하거나 [underline].env[/underline]에 지정하십시오.")

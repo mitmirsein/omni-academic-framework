@@ -7,7 +7,7 @@ from omni_academic.config.lens import (
     get_recon_client_names,
     load_lens,
 )
-from omni_academic.llm.provider import AnthropicProvider, MockProvider
+from omni_academic.llm.provider import AnthropicProvider, MockProvider, OpenAIProvider
 from omni_academic.ontology.extractor import OntologyMap
 from omni_academic.recon.engine import ArxivClient, CrossrefClient, ReconEngine
 from omni_academic.text.paragraphs import assign_paragraph_ids
@@ -42,6 +42,16 @@ def test_anthropic_provider_requires_api_key():
     # 빈 키는 설정 오류 → ValueError (router가 --mock 안내와 함께 처리)
     with pytest.raises(ValueError):
         AnthropicProvider(api_key="")
+
+
+def test_openai_provider_is_reserved_placeholder():
+    with pytest.raises(NotImplementedError) as exc:
+        OpenAIProvider(api_key="test").generate_structured_output("prompt", OntologyMap)
+
+    message = str(exc.value)
+    assert "reserved" in message
+    assert "AnthropicProvider" in message
+    assert "--mock" in message
 
 
 def test_mock_provider_uses_real_paragraph_ids_and_quotes():

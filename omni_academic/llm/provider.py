@@ -7,7 +7,9 @@ from pydantic import BaseModel
 class BaseLLMProvider(ABC):
     """
     모든 LLM 플러그인의 추상 기본 클래스입니다.
-    어떤 모델(OpenAI, Anthropic, Gemini 등)을 사용하든 동일한 인터페이스로 Pydantic 스키마를 반환해야 합니다.
+    현재 지원 경로는 오프라인 테스트용 MockProvider와 기본 live
+    provider인 AnthropicProvider입니다. OpenAI/Gemini 계열은 향후
+    alternate provider 확장용 예약 경계로만 문서화합니다.
     """
 
     #: 직전 호출의 model/usage 메타데이터 (운용 감사용). 호출 후 갱신된다.
@@ -191,13 +193,16 @@ class MockProvider(BaseLLMProvider):
         return OntologyMap(nodes=nodes, edges=edges)
 
 class OpenAIProvider(BaseLLMProvider):
-    """OpenAI API 플러그인 (gpt-4o)"""
+    """향후 alternate provider 확장용 OpenAI placeholder."""
     def __init__(self, api_key: str):
         self.api_key = api_key
         
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
-        # TODO: openai.beta.chat.completions.parse() 구현
-        raise NotImplementedError("OpenAI API 연결은 향후 플러그인에서 활성화됩니다.")
+        raise NotImplementedError(
+            "OpenAIProvider is reserved for future alternate-provider support. "
+            "The default live path uses AnthropicProvider with ANTHROPIC_API_KEY; "
+            "use --mock for offline runs."
+        )
 
 class AnthropicProvider(BaseLLMProvider):
     """Anthropic Claude 플러그인.

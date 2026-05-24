@@ -120,7 +120,16 @@ Providers expose one common interface:
 generate_structured_output(prompt, schema)
 ```
 
-The default live provider is Anthropic. `MockProvider` is used for offline tests and smoke runs.
+Currently supported providers:
+
+- `AnthropicProvider`: default live path for ontology, analysis, draft, and review.
+- `MockProvider`: deterministic offline path for tests, smoke runs, and demos.
+
+Reserved provider boundary:
+
+- `OpenAIProvider` is a placeholder for future alternate-provider support and raises `NotImplementedError`.
+- There is no Gemini provider implementation yet.
+- `OPENAI_API_KEY` and `GEMINI_API_KEY` may appear in local environments, but the default live path ignores them.
 
 ## Gate Layers
 

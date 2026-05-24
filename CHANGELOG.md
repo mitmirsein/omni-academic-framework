@@ -11,6 +11,11 @@ This project uses pragmatic version notes rather than a strict release calendar.
 - Added `SCHEMAS.md` to document artifact contracts for downstream consumers.
 - Added golden fixture tests for ontology, audit, draft, review, failure, manifest, and status contracts.
 - Added `--show-run` next-step guidance for blocked and failed run statuses.
+- Added regression coverage for reserved provider boundaries.
+
+### Changed
+
+- Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.
 
 ## [0.6.0] - 2026-05-24
 
