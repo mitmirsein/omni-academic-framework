@@ -119,6 +119,9 @@ Most users only need:
 ## Documentation
 
 - [USER_GUIDE.md](./USER_GUIDE.md): practical usage guide
+- [ARCHITECTURE.md](./ARCHITECTURE.md): module and gate design
+- [CHANGELOG.md](./CHANGELOG.md): versioned change notes
+- [RELEASE_NOTES.md](./RELEASE_NOTES.md): latest release summary
 - [lenses/](./lenses): bundled domain lenses
 - [examples/](./examples): sample input files
 
@@ -130,4 +133,3 @@ uv run python -m pytest -q
 ```
 
 Local runtime outputs are ignored by git: `.env`, `.cache/`, `.venv/`, `runs/`, `handoff/`, `scratch/`, `.pytest_cache/`, `__pycache__/`.
-

@@ -119,6 +119,9 @@ uv run omni --verify-run examples-sample-md/latest
 ## 문서
 
 - [USER_GUIDE.md](./USER_GUIDE.md): 실제 사용 가이드
+- [ARCHITECTURE.md](./ARCHITECTURE.md): 모듈 구조와 gate 설계
+- [CHANGELOG.md](./CHANGELOG.md): 버전별 변경 사항
+- [RELEASE_NOTES.md](./RELEASE_NOTES.md): 최신 릴리즈 요약
 - [lenses/](./lenses): 기본 domain lens
 - [examples/](./examples): 예제 입력 파일
 
