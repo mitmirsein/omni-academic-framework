@@ -16,7 +16,7 @@ from src.text.paragraphs import assign_paragraph_ids
 def test_load_lens_reads_yaml():
     cfg = load_lens("cs")
     assert cfg["name"] == "Computer Science"
-    assert get_recon_client_names(cfg) == ["arxiv", "crossref"]
+    assert get_recon_client_names(cfg) == ["arxiv", "dblp", "crossref"]
 
 
 def test_load_lens_missing_raises():

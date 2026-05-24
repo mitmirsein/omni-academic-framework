@@ -1,6 +1,7 @@
 name: "Computer Science"
 recon_clients:
   - arxiv
+  - dblp
   - crossref
 focus_areas:
   - "Architecture Efficiency & Performance"
