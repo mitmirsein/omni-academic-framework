@@ -3,6 +3,11 @@ from typing import Optional
 
 from pydantic import BaseModel
 
+DEFAULT_LIVE_PROVIDER_NAME = "AnthropicProvider"
+DEFAULT_LIVE_PROVIDER_ENV_VAR = "ANTHROPIC_API_KEY"
+SUPPORTED_PROVIDER_NAMES = ("AnthropicProvider", "MockProvider")
+RESERVED_PROVIDER_ENV_VARS = ("OPENAI_API_KEY", "GEMINI_API_KEY")
+
 
 class BaseLLMProvider(ABC):
     """
@@ -200,7 +205,8 @@ class OpenAIProvider(BaseLLMProvider):
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
         raise NotImplementedError(
             "OpenAIProvider is reserved for future alternate-provider support. "
-            "The default live path uses AnthropicProvider with ANTHROPIC_API_KEY; "
+            f"The default live path uses {DEFAULT_LIVE_PROVIDER_NAME} "
+            f"with {DEFAULT_LIVE_PROVIDER_ENV_VAR}; "
             "use --mock for offline runs."
         )
 

@@ -16,6 +16,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 ### Changed
 
 - Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.
+- Centralized the current supported/reserved LLM provider contract in code-level constants.
 
 ## [0.6.0] - 2026-05-24
 
