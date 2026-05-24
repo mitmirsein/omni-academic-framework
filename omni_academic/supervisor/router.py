@@ -142,9 +142,7 @@ def _resolve_run_dir(run_ref: str, base: str = "runs") -> Path:
     if not ref:
         raise ValueError("run ref가 비어 있습니다.")
     direct = Path(ref)
-    candidates = []
-    if direct.is_absolute():
-        candidates.append(direct)
+    candidates = [direct]
     candidates.extend([
         base_path / ref,
         base_path / ref / "latest",
@@ -217,9 +215,10 @@ def _print_verify_run(run_ref: str, base: str = "runs") -> bool:
 class OmniSupervisorRouter:
     """단일 진입점 라우터 (Simple & Soft Architecture)."""
 
-    def __init__(self, use_mock: bool = False):
+    def __init__(self, use_mock: bool = False, runs_base: str = "runs"):
         self.console = console
         self.use_mock = use_mock
+        self.runs_base = runs_base
         self._last_ontology = None
 
     async def route(self, request: RouterRequest):
@@ -227,7 +226,12 @@ class OmniSupervisorRouter:
         self.console.print(f"Lens 장착: [yellow]{request.lens}[/yellow]")
         self.use_mock = request.use_mock
 
-        store = RunStore.create(request.query, request.lens, mock=request.use_mock)
+        store = RunStore.create(
+            request.query,
+            request.lens,
+            mock=request.use_mock,
+            base=self.runs_base,
+        )
         store.note("status", run_status.RUNNING)
         try:
             if request.target_module == ModuleType.RECON:
@@ -383,6 +387,8 @@ class OmniSupervisorRouter:
                 annotated, directive=_lens_ontology_directive(lens)
             )
         except (ValueError, NotImplementedError, RuntimeError) as e:
+            store.note("status", run_status.ANALYSIS_FAILED)
+            store.note("error_message", str(e))
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
 
@@ -395,6 +401,7 @@ class OmniSupervisorRouter:
         if report.passed:
             self.console.print_json(ontology_map.model_dump_json())
         else:
+            store.note("status", run_status.BLOCKED_BY_AUDIT)
             self.console.print(
                 "[bold red]⚠️ Audit Gate에서 반려되었습니다. (Fail-Fast 발동)[/bold red]"
             )
@@ -508,9 +515,17 @@ class OmniSupervisorRouter:
             return
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
-        store.write_audit(
-            AuditGate().verify_ontology(ontology_map, paragraph_manifest=manifest)
+        ontology_audit = AuditGate().verify_ontology(
+            ontology_map, paragraph_manifest=manifest
         )
+        store.write_audit(ontology_audit)
+        if not ontology_audit.passed:
+            store.note("status", run_status.BLOCKED_BY_AUDIT)
+            store.note("draft_blocked_by_audit", True)
+            self.console.print(
+                "   => [bold red]Draft skipped because ontology audit failed.[/bold red]"
+            )
+            return
 
         # 2) ScribeAgent 집필 (grounding 재시도 루프)
         scribe = ScribeAgent()
@@ -538,6 +553,7 @@ class OmniSupervisorRouter:
                 f"(Score: {draft_audit.score}/100) → draft.json, draft.md[/bold green]"
             )
         else:
+            store.note("status", run_status.BLOCKED_BY_DRAFT_AUDIT)
             self.console.print(
                 f"   => [bold red]Draft Compliance 반려 "
                 f"(Score: {draft_audit.score}/100)[/bold red]"
@@ -552,7 +568,7 @@ class OmniSupervisorRouter:
         )
 
         try:
-            run_dir = _resolve_run_dir(ref)
+            run_dir = _resolve_run_dir(ref, base=self.runs_base)
             draft_path = run_dir / "draft.json"
         except ValueError:
             p = Path(ref)
@@ -569,12 +585,32 @@ class OmniSupervisorRouter:
         panel = PeerReviewPanel()
         provider = _make_provider(self.use_mock)
 
-        report = panel.build_review(draft, lens, provider)
+        try:
+            report = panel.build_review(draft, lens, provider)
+        except ValueError as e:
+            store.note("status", run_status.BLOCKED_BY_REVIEW_GROUNDING)
+            store.note("review_grounding_passed", False)
+            store.note("review_passed", False)
+            store.note("llm_usage", {
+                "review": provider.last_usage,
+                "review_attempts": panel.last_attempts,
+            })
+            store.note("error_message", str(e))
+            store.write_failure_artifact({
+                "stage": "peer_review_grounding",
+                "error_message": str(e),
+                "review_attempts": panel.last_attempts,
+            })
+            self.console.print(
+                f"   => [bold red]Peer Review grounding 반려: {e}[/bold red]"
+            )
+            return
 
         store.note("llm_usage", {
             "review": provider.last_usage,
             "review_attempts": panel.last_attempts,
         })
+        store.note("review_grounding_passed", True)
         store.write_review(report, panel.render_review(report))
 
         if report.editor_decision in ("Accept", "Major Revision"):
@@ -583,6 +619,7 @@ class OmniSupervisorRouter:
                 f"(Decision: {report.editor_decision}, Score: {report.final_score}/100) → review.json, review.md[/bold green]"
             )
         else:
+            store.note("status", run_status.REVIEW_REJECTED)
             self.console.print(
                 f"   => [bold red]Peer Review 반려 "
                 f"(Decision: {report.editor_decision}, Score: {report.final_score}/100)[/bold red]"

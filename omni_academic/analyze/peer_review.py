@@ -1,7 +1,7 @@
 """Phase 3 — 에이전트 피어 리뷰 패널 모듈 (PeerReviewPanel).
 
-작성된 학술 초안(DraftReport)을 입력받아 5인 에이전트 패널(Ella, Miranda, Methodologist,
-Devil's Advocate, Chief Editor)이 다각도로 비평하고 최종 게재 판정(Decision) 및 점수를 부여한다.
+작성된 학술 초안(DraftReport)을 입력받아 4인 리뷰어 패널(Ella, Miranda, Methodologist,
+Devil's Advocate)과 Chief Editor가 다각도로 비평하고 최종 게재 판정(Decision) 및 점수를 부여한다.
 비평 자체의 할루시네이션을 차단하기 위해, 리뷰어들의 비평문 내 source_quotes가 실제 초안
 텍스트에 실존하는지 접지(grounding) 검증을 수행한다.
 """
@@ -48,6 +48,16 @@ class PeerReviewPanel:
             return yaml.safe_load(f)
 
     @staticmethod
+    def _panelist_items(panel_cfg: dict) -> list[dict]:
+        panelists = panel_cfg.get("panelists", [])
+        if isinstance(panelists, dict):
+            return [
+                {"id": name, "name": name, **(info or {})}
+                for name, info in panelists.items()
+            ]
+        return list(panelists or [])
+
+    @staticmethod
     def _render_draft_for_review(draft: DraftReport) -> str:
         lines = [
             f"Paper Title: {draft.title}",
@@ -78,7 +88,7 @@ class PeerReviewPanel:
         llm_provider,
         max_attempts: int = 2
     ) -> ReviewReport:
-        """초안에 대해 5인 패널 리뷰를 빌드하고 source_quotes에 대한 grounding 검증을 수행한다."""
+        """초안에 대해 reviewer 패널 리뷰를 빌드하고 source_quotes grounding 검증을 수행한다."""
         panel_cfg = self._load_panel_config()
         draft_text = self._render_draft_for_review(draft)
 
@@ -90,7 +100,8 @@ class PeerReviewPanel:
             lens_cfg = {}
 
         panelists_info = []
-        for name, info in panel_cfg.get("panelists", {}).items():
+        for info in self._panelist_items(panel_cfg):
+            name = info.get("name") or info.get("id")
             panelists_info.append(
                 f"- Panelist: {name}\n"
                 f"  Role: {info.get('role')}\n"
@@ -98,6 +109,14 @@ class PeerReviewPanel:
                 f"  Instructions:\n{info.get('prompt')}"
             )
         panelists_str = "\n\n".join(panelists_info)
+        chief_editor = panel_cfg.get("chief_editor") or {}
+        chief_editor_str = (
+            f"- Editor: {chief_editor.get('name', 'Chief Editor')}\n"
+            f"  Role: {chief_editor.get('role', 'Synthesis and publication decision')}\n"
+            f"  Instructions:\n{chief_editor.get('prompt', '')}\n"
+            f"  Decision Rubric: {chief_editor.get('decision_rubric', {})}\n"
+            f"  Score Rubric: {chief_editor.get('score_rubric', {})}"
+        )
 
         base_prompt = (
             "You are the Peer Review Panel (comprising Ella, Miranda, Methodologist, and Devil's Advocate, "
@@ -105,6 +124,8 @@ class PeerReviewPanel:
             "Evaluate the provided academic draft report strictly based on the panel rules and domain lens.\n\n"
             "## Panelist Guidelines:\n"
             f"{panelists_str}\n\n"
+            "## Chief Editor Guidelines:\n"
+            f"{chief_editor_str}\n\n"
             f"## Target Domain Lens: {lens_cfg.get('name', lens_name)}\n"
             f"Lens Focus Areas: {lens_cfg.get('focus_areas', [])}\n"
             f"Lens Analysis Directive:\n{lens_cfg.get('analysis_prompt', '')}\n\n"
@@ -114,7 +135,7 @@ class PeerReviewPanel:
             f"## Draft Report for Review:\n{draft_text}"
         )
         prompt = base_prompt
-        report = None
+        last_error = None
         for attempt in range(1, max(1, max_attempts) + 1):
             self.last_attempts = attempt
             report = llm_provider.generate_structured_output(prompt, ReviewReport)
@@ -122,9 +143,8 @@ class PeerReviewPanel:
                 self._verify_review_grounding(report, draft)
                 return report
             except ValueError as e:
+                last_error = e
                 self.console.print(f"[yellow]⚠️ Review grounding check failed (Attempt {attempt}/{max_attempts}): {e}[/yellow]")
-                if attempt >= max_attempts:
-                    break
                 prompt = (
                     f"{base_prompt}\n\n"
                     "## CORRECTION REQUIRED (previous attempt failed peer-review quote grounding)\n"
@@ -132,7 +152,10 @@ class PeerReviewPanel:
                     "Please re-emit the ReviewReport. Ensure every panelist.source_quotes is present "
                     "verbatim in the draft text. Do not invent quotes."
                 )
-        return report
+        raise ValueError(
+            "Peer review grounding failed after "
+            f"{self.last_attempts} attempt(s): {last_error}"
+        )
 
     @staticmethod
     def _verify_review_grounding(report: ReviewReport, draft: DraftReport) -> None:

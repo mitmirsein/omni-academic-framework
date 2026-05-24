@@ -148,6 +148,18 @@ def test_resolve_run_dir_accepts_run_id_and_slug_latest(tmp_path):
     assert _resolve_run_dir("q", str(tmp_path / "runs")) == run_dir
 
 
+def test_resolve_run_dir_accepts_direct_relative_path(tmp_path, monkeypatch):
+    run_dir = tmp_path / "runs" / "q" / "MOCK-20260519T000000Z"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": "q/MOCK-20260519T000000Z"}),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    assert _resolve_run_dir("runs/q/MOCK-20260519T000000Z", "runs") == run_dir
+
+
 def test_resolve_run_dir_missing_raises(tmp_path):
     with pytest.raises(ValueError):
         _resolve_run_dir("missing", str(tmp_path / "runs"))

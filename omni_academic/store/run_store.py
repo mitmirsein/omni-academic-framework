@@ -92,6 +92,10 @@ def _failure_diagnostic(status: str, meta: dict) -> list[str]:
         "scraper_detection_failed": "ScraperFactory could not select a supported scraper for the selected URL. Check the URL and content type.",
         "scraping_failed": "A scraper was selected, but no Markdown full text was produced. Check source access, PDF extraction, or external tool configuration.",
         "analysis_failed": "Lens briefing failed before artifact creation. Check that the requested lens exists under `lenses/`.",
+        "blocked_by_audit": "Ontology audit failed. Downstream artifacts that depend on the ontology were blocked.",
+        "blocked_by_draft_audit": "Draft compliance audit failed. The draft artifacts were written for diagnosis, but the run did not pass the draft gate.",
+        "blocked_by_review_grounding": "Peer review quote grounding failed. The review was not promoted to review.json/review.md.",
+        "review_rejected": "Peer review completed, but the Editor-in-Chief decision was Reject.",
     }
     message = diagnostics.get(str(status or ""))
     if not message:
@@ -300,6 +304,16 @@ class RunStore:
             f"- **Audit**: `{str(audit_passed).upper()}`",
             f"- **Forensic Gate**: `{str(forensic_passed).upper() if forensic_passed is not None else 'NOT_RUN'}`",
         ]
+        for key, label in (
+            ("lens_audit_passed", "Lens Audit"),
+            ("draft_passed", "Draft Gate"),
+            ("review_grounding_passed", "Review Grounding"),
+            ("review_passed", "Peer Review"),
+        ):
+            if key in self._meta:
+                lines.append(f"- **{label}**: `{str(self._meta.get(key)).upper()}`")
+        if self._meta.get("draft_blocked_by_audit"):
+            lines.append("- **Draft**: `SKIPPED_BY_ONTOLOGY_AUDIT`")
         if self._meta.get("error_message"):
             lines.append(f"- **Error Message**: `{self._meta['error_message']}`")
         diagnostic = _failure_diagnostic(str(status), self._meta)
@@ -540,4 +554,3 @@ class RunStore:
         for name, typ in additions.items():
             if name not in existing:
                 conn.execute(f"ALTER TABLE runs ADD COLUMN {name} {typ}")
-

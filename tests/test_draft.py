@@ -8,7 +8,7 @@ from omni_academic.draft.scribe import (
     ScribeAgent,
 )
 from omni_academic.llm.provider import MockProvider
-from omni_academic.ontology.extractor import OntologyMap
+from omni_academic.ontology.extractor import EntityClass, Node, OntologyMap
 from omni_academic.store.run_store import RunStore
 from omni_academic.supervisor.router import OmniSupervisorRouter
 
@@ -17,6 +17,24 @@ DOC = (
     "Second paragraph discussing scalability limits and reproducibility concerns.\n\n"
     "Third paragraph on empirical validation methodology and results."
 )
+
+
+class BadOntologyProvider:
+    last_usage = {"model": "bad-ontology", "mock": True}
+
+    def generate_structured_output(self, prompt, schema):
+        return OntologyMap(
+            nodes=[
+                Node(
+                    id="n_bad",
+                    label="Hallucinated Node",
+                    entity_class=EntityClass.CONCEPT,
+                    paragraph_id="P_9999",
+                    source_quote="absent quote",
+                )
+            ],
+            edges=[],
+        )
 
 
 def test_scribe_mock_produces_grounded_draft_that_passes_gate():
@@ -109,3 +127,23 @@ def test_draft_module_mock_e2e(tmp_path):
     # report.md에 Draft Compliance 섹션이 렌더되는지
     report = (run_dir / "report.md").read_text(encoding="utf-8")
     assert "### Draft Compliance" in report
+
+
+def test_draft_module_blocks_when_ontology_audit_fails(tmp_path, monkeypatch):
+    from omni_academic.supervisor import router as router_mod
+
+    monkeypatch.setattr(router_mod, "_make_provider", lambda use_mock: BadOntologyProvider())
+    store = RunStore.create("draft topic", "cs", mock=True, base=str(tmp_path))
+    OmniSupervisorRouter(use_mock=True)._run_draft(store, DOC, "cs")
+    run_dir = store.finalize()
+
+    assert (run_dir / "ontology.json").is_file()
+    assert (run_dir / "audit.json").is_file()
+    assert not (run_dir / "draft.json").exists()
+    assert not (run_dir / "draft.md").exists()
+    m = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert m["status"] == "blocked_by_audit"
+    assert m["audit_passed"] is False
+    assert m["draft_blocked_by_audit"] is True
+    report = (run_dir / "report.md").read_text(encoding="utf-8")
+    assert "SKIPPED_BY_ONTOLOGY_AUDIT" in report
