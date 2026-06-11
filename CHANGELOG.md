@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 This project uses pragmatic version notes rather than a strict release calendar. Dates are written in ISO format.
 
-## [Unreleased]
+## [0.7.0] - 2026-06-11
 
 ### Added
 
@@ -34,6 +34,12 @@ This project uses pragmatic version notes rather than a strict release calendar.
 - Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.
 - Centralized the current supported/reserved LLM provider contract in code-level constants.
 - Split setup questions and diagnostics rows into small typed helpers for easier maintenance.
+
+### Verified
+
+- `uv run ruff check`
+- `uv run python -m pytest -q --cov=omni_academic` (`243 passed` with dev+scholar-browser extras (`223 passed, 2 skipped` without the parser extra), coverage 73%)
+- Mock CLI smoke: `--module draft --glossary`, `--module review --independent-panel`, `--verify-run`
 
 ## [0.6.0] - 2026-05-24
 

@@ -2,7 +2,7 @@
 
 A source-grounded academic text processing pipeline. It can run literature reconnaissance, full-text acquisition, paragraph ID assignment, ontology extraction, audit, draft generation, and peer review as independent modules. Outputs are persisted under `runs/` as JSON/Markdown artifacts.
 
-Current version: prototype `0.6.0`. The core rule is simple: generated claims and reviews must be grounded in source paragraphs and verbatim quotes. If grounding fails, the run is blocked instead of being reported as completed.
+Current version: prototype `0.7.0`. The core rule is simple: generated claims and reviews must be grounded in source paragraphs and verbatim quotes. If grounding fails, the run is blocked instead of being reported as completed.
 
 ## What It Does
 
