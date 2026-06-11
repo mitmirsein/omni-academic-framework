@@ -444,6 +444,66 @@ class OmniSupervisorRouter:
         self.console.print("[bold green]원문 징발 성공! Ontology Extractor로 전달합니다...[/bold green]\n")
         self._run_ontology(store, markdown_text, lens)
 
+    def _write_coverage(
+        self,
+        store: RunStore,
+        target_document: str,
+        lens: str,
+        *,
+        ontology_map=None,
+        draft=None,
+        analysis=None,
+    ):
+        """모듈 주산출물의 무손실 정량 지표(coverage.json) 기록 — 헌법 §3.
+
+        차단 게이트가 아니라 진단 계층: 임계값은 렌즈 YAML
+        `coverage_thresholds`에서만 온다. 위반은 warning으로 보고한다.
+        """
+        from omni_academic.audit.coverage import CoverageAuditor
+        from omni_academic.config.lens import LensNotFoundError, load_lens
+        from omni_academic.text.paragraphs import assign_paragraph_ids
+
+        _, paragraph_map = assign_paragraph_ids(target_document)
+        anchored: list[str] = []
+        parts: list[str] = []
+        if ontology_map is not None:
+            anchored += [n.paragraph_id for n in ontology_map.nodes]
+            parts += [n.label for n in ontology_map.nodes]
+            parts += [n.source_quote for n in ontology_map.nodes]
+            parts += [e.reasoning for e in ontology_map.edges]
+            parts += [e.source_quote for e in ontology_map.edges]
+        if draft is not None:
+            anchored += [c.paragraph_id for c in draft.claims]
+            parts += [draft.title, draft.thesis]
+            parts += [s.body for s in draft.sections]
+            parts += [c.source_quote for c in draft.claims]
+            parts += list(draft.open_tensions)
+        if analysis is not None:
+            anchored += [f.paragraph_id for f in analysis.findings]
+            parts += [analysis.executive_summary]
+            parts += [f.source_quote for f in analysis.findings]
+            parts += [f.analysis for f in analysis.findings]
+
+        try:
+            thresholds = (load_lens(lens) or {}).get("coverage_thresholds") or None
+        except LensNotFoundError:
+            thresholds = None
+
+        report = CoverageAuditor().measure(
+            paragraph_map, anchored, " ".join(p for p in parts if p), thresholds,
+        )
+        store.write_coverage(report)
+        style = "yellow" if report.findings else "cyan"
+        self.console.print(
+            f"   => [bold {style}]Coverage: paragraphs "
+            f"{report.covered_paragraph_count}/{report.paragraph_count} "
+            f"({round(report.paragraph_coverage * 100)}%), "
+            f"tail {round(report.tail_coverage * 100)}%, "
+            f"token ratio {report.token_ratio}[/bold {style}]"
+        )
+        for finding in report.findings:
+            self.console.print(f"      ⚠️ [{finding.code}] {finding.message}")
+
     def _run_ontology(self, store: RunStore, target_document: str, lens: str = "general"):
         from omni_academic.audit.gate import AuditGate
         from omni_academic.ontology.extractor import OntologyExtractor
@@ -469,6 +529,7 @@ class OmniSupervisorRouter:
 
         report = AuditGate().verify_ontology(ontology_map, paragraph_manifest=manifest)
         store.write_audit(report)
+        self._write_coverage(store, target_document, lens, ontology_map=ontology_map)
         if report.passed:
             self.console.print_json(ontology_map.model_dump_json())
         else:
@@ -513,6 +574,7 @@ class OmniSupervisorRouter:
             store.write_lens_analysis(report, analyzer.render_analysis(report))
             lens_audit = LensComplianceAuditor().verify(report, target_document, lens)
             store.write_lens_audit(lens_audit)
+            self._write_coverage(store, target_document, lens, analysis=report)
             self.console.print(
                 "   => [bold green]LLM lens analysis 저장 완료: "
                 "lens_analysis.json, lens_analysis.md[/bold green]"
@@ -618,6 +680,7 @@ class OmniSupervisorRouter:
             draft, target_document, ontology_map
         )
         store.write_draft_audit(draft_audit)
+        self._write_coverage(store, target_document, lens, draft=draft)
         if draft_audit.passed:
             self.console.print(
                 f"   => [bold green]Draft Compliance 통과 "

@@ -8,6 +8,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Added
 
+- Added `CoverageAuditor` ("token-ratio defense"): every ontology/draft/LLM-analyze run now writes `coverage.json` with paragraph/tail coverage and token ratio, mirrored into the manifest and `report.md`; lenses may define `coverage_thresholds` to surface warning findings. Diagnostic only — it never blocks a run.
 - Added review source provenance (chain of custody): `--module review` now verifies the source run manifest and blocks drafts that did not pass their compliance audit (`blocked_by_source_audit`); review manifests record `source_run_id`, `source_draft_passed`, `source_mock`, and `source_provenance`.
 - Added `omni_academic/text/grounding.py` as the single quote-grounding policy (NFKC + curly-quote/soft-hyphen normalization + whitespace collapse, case-preserving) shared by every gate and retry verifier.
 - Added `QUOTE_NORMALIZED_MATCH` info findings so quotes rescued by normalization stay traceable.

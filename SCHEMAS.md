@@ -61,6 +61,9 @@ Common optional fields:
 | `source_run_id` | string | review module: `run_id` of the source draft run |
 | `source_draft_passed` | boolean or null | review module: `draft_passed` recorded in the source run manifest |
 | `source_mock` | boolean | review module: source draft run was generated with `--mock` |
+| `paragraph_coverage` | float | coverage auditor ran (see `coverage.json`) |
+| `tail_coverage` | float | coverage auditor ran |
+| `token_ratio` | float | coverage auditor ran |
 | `llm_usage` | object | provider/model/usage metadata for LLM-backed steps |
 | `error_message` | string | exception or blocked-path diagnostic |
 | `has_failure_artifact` | boolean | `failure.json` was written |
@@ -226,6 +229,36 @@ Contract:
 - `passed=false` whenever at least one `error` finding is present.
 - `score` is a bounded integer from 0 to 100.
 - Consumers should prefer `passed` over interpreting `score`.
+
+## `coverage.json`
+
+Model: `CoverageReport`
+
+Deterministic lossless-quantification metrics ("token-ratio defense") for the module's
+primary artifact (ontology nodes, draft claims, or lens analysis findings).
+
+```json
+{
+  "paragraph_count": 6,
+  "covered_paragraph_count": 3,
+  "paragraph_coverage": 0.5,
+  "tail_paragraph_count": 2,
+  "tail_covered_count": 0,
+  "tail_coverage": 0.0,
+  "source_tokens": 420,
+  "output_tokens": 96,
+  "token_ratio": 0.2286,
+  "findings": [],
+  "checked_at": "2026-06-11T00:00:00Z"
+}
+```
+
+Contract:
+
+- Coverage ratios are floats in `[0, 1]`; `tail_*` measures the final third of the source paragraphs (head-bias detection).
+- `findings` only contains `warning` entries produced when the lens config defines `coverage_thresholds` (`min_paragraph_coverage`, `min_tail_coverage`, `min_token_ratio`, `max_token_ratio`).
+- This artifact is diagnostic: it never blocks a run by itself.
+- `paragraph_coverage`, `tail_coverage`, and `token_ratio` are mirrored into `manifest.json`.
 
 ## `lens_analysis.json`
 

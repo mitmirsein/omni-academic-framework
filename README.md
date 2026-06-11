@@ -82,9 +82,9 @@ uv run omni --verify-run examples-sample-md/latest
 | 모듈 | 산출물 |
 |---|---|
 | `recon` | `digest.json`, optional `fulltext.md`, `ontology.json`, `audit.json` |
-| `ontology` | `paragraphs.json`, `ontology.json`, `audit.json` |
-| `analyze` | `lens_brief.md`, optional `lens_analysis.json/md`, `lens_audit.json` |
-| `draft` | `draft.json`, `draft.md`, `draft_audit.json` |
+| `ontology` | `paragraphs.json`, `ontology.json`, `audit.json`, `coverage.json` |
+| `analyze` | `lens_brief.md`, optional `lens_analysis.json/md`, `lens_audit.json`, `coverage.json` |
+| `draft` | `draft.json`, `draft.md`, `draft_audit.json`, `coverage.json` |
 | `review` | grounding 통과 시 `review.json`, `review.md` |
 
 ## Gate 상태

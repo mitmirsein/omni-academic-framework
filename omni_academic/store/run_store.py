@@ -163,6 +163,7 @@ class RunStore:
         self._lens_critic_audit = None
         self._draft_audit = None
         self._review = None
+        self._coverage = None
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -246,6 +247,14 @@ class RunStore:
         self._write_json("failure.json", payload)
         self._meta["has_failure_artifact"] = True
 
+    def write_coverage(self, report):
+        """토큰 비율 방어선(헌법 §3) 지표 보존: coverage.json + manifest 요약."""
+        self._coverage = report
+        self._write_json("coverage.json", report)
+        self._meta["paragraph_coverage"] = getattr(report, "paragraph_coverage", None)
+        self._meta["tail_coverage"] = getattr(report, "tail_coverage", None)
+        self._meta["token_ratio"] = getattr(report, "token_ratio", None)
+
     def write_lens_brief(self, markdown: str):
         (self.dir / "lens_brief.md").write_text(markdown or "", encoding="utf-8")
         self._artifacts.append("lens_brief.md")
@@ -305,6 +314,15 @@ class RunStore:
             f"- **Audit**: `{str(audit_passed).upper()}`",
             f"- **Forensic Gate**: `{str(forensic_passed).upper() if forensic_passed is not None else 'NOT_RUN'}`",
         ]
+        if self._coverage is not None:
+            cov = self._coverage
+            lines.append(
+                "- **Coverage (Token-Ratio Defense)**: paragraphs "
+                f"`{_field(cov, 'covered_paragraph_count', 0)}/{_field(cov, 'paragraph_count', 0)}` "
+                f"(`{round(float(_field(cov, 'paragraph_coverage', 0.0)) * 100)}%`), "
+                f"tail `{round(float(_field(cov, 'tail_coverage', 0.0)) * 100)}%`, "
+                f"token ratio `{_field(cov, 'token_ratio', 0.0)}`"
+            )
         for key, label in (
             ("lens_audit_passed", "Lens Audit"),
             ("draft_passed", "Draft Gate"),
@@ -427,6 +445,19 @@ class RunStore:
         else:
             lines.append("\n### Forensics (Gate 2)")
             lines.append("- Not run.")
+
+        if self._coverage is not None:
+            cov_findings = _field(self._coverage, "findings", []) or []
+            lines.append("\n### Coverage (Token-Ratio Defense)")
+            lines.append(
+                f"- **Source Tokens**: `{_field(self._coverage, 'source_tokens', 0)}` | "
+                f"**Output Tokens**: `{_field(self._coverage, 'output_tokens', 0)}`"
+            )
+            if cov_findings:
+                for finding in cov_findings:
+                    lines.append(_finding_line(finding))
+            else:
+                lines.append("- No coverage threshold findings.")
 
         if self._lens_audit:
             passed = _field(self._lens_audit, "passed", False)

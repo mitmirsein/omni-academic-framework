@@ -50,15 +50,18 @@ query or file
   |-- ontology ------> ontology.json
   |       |
   |       +-- AuditGate -> audit.json
+  |       +-- CoverageAuditor -> coverage.json
   |
   |-- analyze -------> lens_brief.md
   |       |
   |       +-- optional LLM analysis -> lens_analysis.json/md
   |       +-- LensComplianceAuditor -> lens_audit.json
+  |       +-- CoverageAuditor -> coverage.json (with --llm-analysis)
   |
   |-- draft ---------> draft.json/md
   |       |
   |       +-- DraftComplianceAuditor -> draft_audit.json
+  |       +-- CoverageAuditor -> coverage.json
   |
   |-- review --------> review.json/md
           |
@@ -175,6 +178,21 @@ Validates generated drafts:
 - every claim is referenced from prose using `[C#]`
 - undeclared claim anchors are detected
 - unresolved tensions can be preserved in `open_tensions`
+
+### CoverageAuditor (Token-Ratio Defense)
+
+File: `omni_academic/audit/coverage.py`
+
+Deterministic lossless-quantification layer. For the module's primary artifact it measures:
+
+- `paragraph_coverage`: share of source paragraphs anchored by at least one node/claim/finding
+- `tail_coverage`: same metric over the final third of the document (head-bias detection)
+- `token_ratio`: output tokens relative to source tokens
+
+It is diagnostic and never blocks a run by itself. Optional warning thresholds are injected
+through the lens config field `coverage_thresholds` (`min_paragraph_coverage`,
+`min_tail_coverage`, `min_token_ratio`, `max_token_ratio`) — the core stays domain-agnostic.
+Results are written to `coverage.json` and mirrored into `manifest.json`.
 
 ### Peer Review Grounding
 

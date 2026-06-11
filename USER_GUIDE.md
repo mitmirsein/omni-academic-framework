@@ -196,6 +196,7 @@ uv run omni --verify-run runs/examples-sample-md/latest
 | `paragraphs.json` | 문단 ID와 원문 문단 mapping |
 | `ontology.json` | 추출된 node/edge |
 | `audit.json` | ontology gate 결과 |
+| `coverage.json` | 무손실 정량 지표(문단/후반부 커버리지, 토큰 비율) |
 | `draft_audit.json` | draft gate 결과 |
 | `failure.json` | blocked/failed path 진단 |
 
