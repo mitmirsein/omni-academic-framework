@@ -184,6 +184,22 @@ def _diagnostic_rows() -> tuple[list[DiagnosticRow], dict[str, str]]:
                 "Jina Reader 본문 파싱용 (발급: jina.ai/reader)",
             ),
             DiagnosticRow(
+                "LLM",
+                "OMNI_LLM_MODEL",
+                f"[green]Override: {os.environ.get('OMNI_LLM_MODEL', '').strip()}[/green]"
+                if os.environ.get("OMNI_LLM_MODEL", "").strip()
+                else "[dim]Provider default[/dim]",
+                "live LLM 모델 오버라이드 (미설정 시 provider 기본 모델 사용)",
+            ),
+            DiagnosticRow(
+                "LLM",
+                "OMNI_LLM_MAX_TOKENS",
+                f"[green]{os.environ.get('OMNI_LLM_MAX_TOKENS', '').strip()}[/green]"
+                if os.environ.get("OMNI_LLM_MAX_TOKENS", "").strip()
+                else "[dim]Default (16000)[/dim]",
+                "live 응답 토큰 예산. max_tokens 잘림(hard fail) 시 상향 조정",
+            ),
+            DiagnosticRow(
                 "Dependency",
                 "Lightpanda (Headless JS)",
                 f"[green]Detected: {lightpanda_bin}[/green]"

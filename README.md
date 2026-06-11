@@ -114,6 +114,8 @@ uv run omni --verify-run examples-sample-md/latest
 | `OMNI_LIGHTPANDA_BIN` | Local browser scraping fallback |
 | `OMNI_PDF_EXTRACTOR` | External PDF text extraction |
 | `OMNI_LENS_DIR` | Custom lens directory |
+| `OMNI_LLM_MODEL` | Live LLM 모델 오버라이드 (선택) |
+| `OMNI_LLM_MAX_TOKENS` | Live 응답 토큰 예산 (기본 16000) |
 
 `OPENAI_API_KEY`와 `GEMINI_API_KEY`는 future/alternate provider용이며 기본 live path에는 필요하지 않습니다.
 

@@ -76,3 +76,15 @@ def test_missing_tool_block_still_raises():
     provider = _provider(_FakeResponse("end_turn", content=[]))
     with pytest.raises(RuntimeError, match="tool_use"):
         provider.generate_structured_output("prompt", OntologyMap)
+
+
+def test_llm_model_override_env(monkeypatch):
+    from omni_academic.llm.provider import MockProvider
+    from omni_academic.supervisor.router import _llm_model_override, _make_provider
+
+    monkeypatch.delenv("OMNI_LLM_MODEL", raising=False)
+    assert _llm_model_override() is None
+    monkeypatch.setenv("OMNI_LLM_MODEL", "  claude-custom ")
+    assert _llm_model_override() == "claude-custom"
+    # mock 경로는 모델 오버라이드와 무관하게 동작한다.
+    assert isinstance(_make_provider(True), MockProvider)

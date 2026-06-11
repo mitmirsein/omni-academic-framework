@@ -114,6 +114,8 @@ Most users only need:
 | `OMNI_LIGHTPANDA_BIN` | Local browser scraping fallback |
 | `OMNI_PDF_EXTRACTOR` | External PDF text extraction |
 | `OMNI_LENS_DIR` | Custom lens directory |
+| `OMNI_LLM_MODEL` | Override the live LLM model (optional) |
+| `OMNI_LLM_MAX_TOKENS` | Live response token budget (default 16000) |
 
 `OPENAI_API_KEY` and `GEMINI_API_KEY` are reserved for future/alternate providers and are not required for the default live path.
 

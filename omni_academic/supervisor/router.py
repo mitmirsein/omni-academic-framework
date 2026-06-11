@@ -68,12 +68,20 @@ def _resolve_document(query: str) -> str:
     return query
 
 
+def _llm_model_override() -> "str | None":
+    """OMNI_LLM_MODEL 환경변수로 live 모델을 주입(미설정 시 provider 기본값)."""
+    return os.environ.get("OMNI_LLM_MODEL", "").strip() or None
+
+
 def _make_provider(use_mock: bool):
     if use_mock:
         from omni_academic.llm.provider import MockProvider
         return MockProvider()
     from omni_academic.llm.provider import AnthropicProvider
-    return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+    return AnthropicProvider(
+        api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+        model=_llm_model_override(),
+    )
 
 
 def _provider_usage(step: str, provider, attempts: "int | None" = None) -> dict:

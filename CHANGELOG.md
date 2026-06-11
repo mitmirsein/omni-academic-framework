@@ -8,6 +8,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Added
 
+- Added `OMNI_LLM_MODEL` to override the live LLM model without code changes; `--status` now shows `OMNI_LLM_MODEL` and `OMNI_LLM_MAX_TOKENS` diagnostics and `.env.example` documents both.
 - Added `LensConfig` schema validation: lens YAML files that violate the known field contract (e.g., `focus_areas` not a list) now fail loudly with `LensConfigError` instead of silently injecting empty directives; unknown top-level keys are surfaced as warnings and `--list-lenses` gained a Validation column.
 - Added a self-correcting retry loop to `OntologyExtractor` (same pattern as draft/review): grounding violations are fed back as a CORRECTION block before the formal `AuditGate` runs; `llm_usage.ontology_attempts` is recorded in the manifest.
 - Added `CoverageAuditor` ("token-ratio defense"): every ontology/draft/LLM-analyze run now writes `coverage.json` with paragraph/tail coverage and token ratio, mirrored into the manifest and `report.md`; lenses may define `coverage_thresholds` to surface warning findings. Diagnostic only — it never blocks a run.

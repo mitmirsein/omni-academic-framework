@@ -69,6 +69,8 @@ uv run --extra llm omni --setup
 | `OMNI_LIGHTPANDA_BIN` | 브라우저 렌더링이 필요한 페이지 fallback |
 | `OMNI_PDF_EXTRACTOR` | 외부 PDF 텍스트 추출기 |
 | `OMNI_LENS_DIR` | 사용자 lens 디렉터리 |
+| `OMNI_LLM_MODEL` | live LLM 모델 오버라이드 |
+| `OMNI_LLM_MAX_TOKENS` | live 응답 토큰 예산(기본 16000) |
 
 `OPENAI_API_KEY`와 `GEMINI_API_KEY`는 기본 live path에는 필요하지 않습니다.
 
