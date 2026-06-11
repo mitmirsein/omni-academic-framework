@@ -29,8 +29,9 @@ jobs:
       - name: Ruff (lint gate — real-bug signals only)
         run: uv run ruff check omni_academic tests
 
-      - name: Pytest (offline suite)
-        run: uv run python -m pytest -q
+      - name: Pytest (offline suite, coverage visibility)
+        # 커버리지는 가시화 전용 — fail 임계값은 사각지대 데이터 확보 후 별도 결정.
+        run: uv run python -m pytest -q --cov=omni_academic --cov-report=term-missing:skip-covered
 
       - name: CLI smoke (ontology + artifact verification)
         run: |
