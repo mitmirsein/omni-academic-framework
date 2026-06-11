@@ -396,6 +396,14 @@ uv run python -m pytest tests/test_peer_review.py tests/test_draft.py -q
 - mock CLI 스모크: `draft --glossary`(용어집 2건 장착, 감사 통과) → `review --independent-panel`(5 호출, Accept) → `--verify-run` 무결성 OK
 - F13 리팩터는 기존 테스트 무수정 통과로 동작 불변 확인
 
+### 후속 작업 — 완료 (2026-06-11)
+
+- 커버리지 사각지대 보강 (`35e9a43`): `query_db` 인프로세스 테스트(0%→88%), `status.py` env 유틸/진단 테스트(27%→67%), 전체 68%→73%.
+- **v0.7.0 릴리즈** (`2feb718`): pyproject 버전 범프, CHANGELOG 확정, RELEASE_NOTES v0.7.0 섹션, `v0.7.0` annotated tag 및 GitHub Release 발행 — https://github.com/mitmirsein/omni-academic-framework/releases/tag/v0.7.0
+- 최종 상태: `243 passed`(dev+scholar-browser extras 기준; parser extra 없이는 223 passed, 2 skipped), `origin/main` 동기화.
+
+본 계획의 14개 Finding은 전부 구현·검증·릴리즈되었다. 이 문서는 완료 기록으로 보존한다.
+
 ## 8. 후속 에이전트 주의사항
 
 - 각 Finding은 독립 커밋으로 구현하고, 커밋마다 위 검증 명령을 통과시킨다.
