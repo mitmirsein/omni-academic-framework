@@ -342,7 +342,26 @@ uv run python -m pytest tests/test_peer_review.py tests/test_draft.py -q
 
 ---
 
-## 7. 후속 에이전트 주의사항
+## 7. 구현 완료 기록
+
+### Phase 1 — 완료 (2026-06-11)
+
+| Finding | 커밋 | 비고 |
+|---|---|---|
+| F2 grounding 정책 통일 | `6bdff4a` | `text/grounding.py` 신설, 게이트 5곳 + 재시도 검증기 3곳(`ScribeAgent`/`LensAnalyzer`/`PeerReviewPanel`) 교체, `QUOTE_NORMALIZED_MATCH` info finding, 파라미터라이즈 테스트 19건 |
+| F4 truncation hard fail | `59ef025` | `stop_reason=max_tokens` 시 RuntimeError + `OMNI_LLM_MAX_TOKENS` 안내, fake client 테스트 3건 |
+| F1 review 출처 체인 | `12769a3` | `blocked_by_source_audit` status 신설, `source_run_id`/`source_draft_passed`/`source_mock`/`source_provenance` manifest 기록, 차단·unverified 경로 테스트 |
+| F3 CoverageAuditor | `b1a6866` | `audit/coverage.py` 신설, ontology/draft/analyze 경로 장착, `coverage.json` + manifest 미러링 + report.md 표기, 렌즈 `coverage_thresholds` 옵션, 테스트 6건 |
+
+완료 기준 검증 (2026-06-11 실측):
+
+- `uv run ruff check`: 통과
+- `uv run python -m pytest -q`: `165 passed, 2 skipped` (기존 135 + 신규 30)
+- 게이트 자체 quote 매칭 잔존 0건: `grep -rn "_canon|quote not in" omni_academic/` (grounding.py 제외) 매치 없음
+- mock CLI 스모크: draft → review → `--verify-run` 전 구간 통과, review run manifest에 `source_provenance=manifest`/`source_draft_passed=true` 기록 확인, draft run에 `coverage.json` + coverage manifest 필드 기록 확인
+- `blocked_by_draft_audit` run 리뷰 차단은 `test_router_review_blocked_when_source_draft_failed`로 고정
+
+## 8. 후속 에이전트 주의사항
 
 - 각 Finding은 독립 커밋으로 구현하고, 커밋마다 위 검증 명령을 통과시킨다.
 - MockProvider 성공 경로만으로 판단하지 말 것 — 실패 경로는 scripted provider로 반드시 고정한다(기존 `tests/test_peer_review.py`의 패턴 참조).
