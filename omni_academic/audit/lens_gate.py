@@ -4,10 +4,12 @@ from typing import Dict, List
 from omni_academic.analyze.lens_analyzer import LensAnalysisReport, LensCriticReport
 from omni_academic.audit.gate import AuditFinding, AuditReport
 from omni_academic.config.lens import LensNotFoundError, load_lens
+from omni_academic.text.grounding import canon_quote, is_normalized_match, quote_in
 from omni_academic.text.paragraphs import assign_paragraph_ids
 
 
 def _norm(text: str) -> str:
+    """렌즈 이름/focus area 대조용(quote grounding에는 grounding 모듈 사용)."""
     return " ".join((text or "").casefold().split())
 
 
@@ -98,6 +100,7 @@ class LensComplianceAuditor:
                 continue
 
             quote = item.source_quote
+            para_text = paragraph_map[item.paragraph_id]
             if not quote.strip():
                 findings.append(AuditFinding(
                     severity="error",
@@ -105,7 +108,7 @@ class LensComplianceAuditor:
                     message="렌즈 분석 source_quote 누락",
                     source_ref=ref,
                 ))
-            elif quote not in paragraph_map[item.paragraph_id]:
+            elif not quote_in(quote, para_text):
                 findings.append(AuditFinding(
                     severity="error",
                     code="UNGROUNDED_LENS_QUOTE",
@@ -123,7 +126,17 @@ class LensComplianceAuditor:
                     source_ref=ref,
                 ))
             else:
-                seen_quotes.setdefault(_norm(quote), []).append(ref)
+                if is_normalized_match(quote, para_text):
+                    findings.append(AuditFinding(
+                        severity="info",
+                        code="QUOTE_NORMALIZED_MATCH",
+                        message=(
+                            f"source_quote가 정규화(공백/유니코드) 후에만 일치함: "
+                            f"{item.paragraph_id}"
+                        ),
+                        source_ref=ref,
+                    ))
+                seen_quotes.setdefault(canon_quote(quote), []).append(ref)
 
             if len(item.analysis.strip()) < 20:
                 findings.append(AuditFinding(
@@ -210,7 +223,9 @@ class LensComplianceAuditor:
                         source_ref=ref,
                     ))
                     continue
-                if critique.source_quote and critique.source_quote not in paragraph_map[critique.paragraph_id]:
+                if critique.source_quote and not quote_in(
+                    critique.source_quote, paragraph_map[critique.paragraph_id]
+                ):
                     findings.append(AuditFinding(
                         severity="error",
                         code="UNGROUNDED_CRITIC_QUOTE",

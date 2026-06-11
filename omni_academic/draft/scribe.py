@@ -22,6 +22,7 @@ from rich.console import Console
 
 from omni_academic.config.lens import load_lens
 from omni_academic.ontology.extractor import OntologyMap
+from omni_academic.text.grounding import quote_in
 from omni_academic.text.paragraphs import assign_paragraph_ids
 
 console = Console()
@@ -166,7 +167,7 @@ class ScribeAgent:
                     f"draft claim {claim.claim_id} used unknown paragraph_id: "
                     f"{claim.paragraph_id}"
                 )
-            if claim.source_quote not in source:
+            if not quote_in(claim.source_quote, source):
                 raise ValueError(
                     f"draft claim {claim.claim_id} source_quote is not present in "
                     f"paragraph {claim.paragraph_id}: {claim.source_quote}"

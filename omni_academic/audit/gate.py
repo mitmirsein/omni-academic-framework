@@ -5,16 +5,12 @@ from pydantic import BaseModel
 from rich.console import Console
 
 from omni_academic.ontology.extractor import OntologyMap
+from omni_academic.text.grounding import canon_quote, is_normalized_match, quote_in
 
 console = Console()
 
 MIN_QUOTE_CHARS = 8
 MAX_QUOTE_CHARS = 200
-
-
-def _canon(text: str) -> str:
-    """인용 대조용 정규화: 소문자 + 공백 단일화."""
-    return " ".join((text or "").lower().split())
 
 
 def _quote_len(text: str) -> int:
@@ -133,7 +129,7 @@ class AuditGate:
             # set(레거시)면 paragraph_id 실존만 검사(quote 검사 생략).
             has_text = isinstance(paragraph_manifest, dict)
             corpus = (
-                _canon(" ".join(paragraph_manifest.values())) if has_text else ""
+                " ".join(paragraph_manifest.values()) if has_text else ""
             )
             for node in ontology.nodes:
                 if node.paragraph_id not in paragraph_manifest:
@@ -148,14 +144,14 @@ class AuditGate:
                     continue
                 if not has_text:
                     continue
-                q = _canon(node.source_quote)
-                if not q:
+                para_text = paragraph_manifest[node.paragraph_id]
+                if not canon_quote(node.source_quote):
                     findings.append(AuditFinding(
                         severity="warning", code="MISSING_QUOTE",
                         message=f"source_quote 누락(검증 약화): {node.label}",
                         source_ref=node.id,
                     ))
-                elif q not in _canon(paragraph_manifest[node.paragraph_id]):
+                elif not quote_in(node.source_quote, para_text):
                     findings.append(AuditFinding(
                         severity="error", code="UNGROUNDED_QUOTE",
                         message=(
@@ -165,6 +161,15 @@ class AuditGate:
                         source_ref=node.id,
                     ))
                 else:
+                    if is_normalized_match(node.source_quote, para_text):
+                        findings.append(AuditFinding(
+                            severity="info", code="QUOTE_NORMALIZED_MATCH",
+                            message=(
+                                f"인용이 정규화(공백/유니코드) 후에만 일치함: "
+                                f"{node.label}"
+                            ),
+                            source_ref=node.id,
+                        ))
                     findings.extend(_quote_quality_findings(
                         quote=node.source_quote,
                         label=node.label,
@@ -174,7 +179,7 @@ class AuditGate:
             if has_text:
                 node_quote_refs: Dict[str, List[str]] = {}
                 for node in ontology.nodes:
-                    q = _canon(node.source_quote)
+                    q = canon_quote(node.source_quote)
                     if q:
                         node_quote_refs.setdefault(q, []).append(node.id)
                 for refs in node_quote_refs.values():
@@ -190,13 +195,13 @@ class AuditGate:
 
                 edge_quote_refs: Dict[str, List[str]] = {}
                 for edge in ontology.edges:
-                    q = _canon(edge.source_quote)
+                    q = canon_quote(edge.source_quote)
                     if not q:
                         findings.append(AuditFinding(
                             severity="warning", code="MISSING_QUOTE",
                             message=f"엣지 source_quote 누락: {edge.source_id}->{edge.target_id}",
                         ))
-                    elif q not in corpus:
+                    elif not quote_in(edge.source_quote, corpus):
                         findings.append(AuditFinding(
                             severity="error", code="UNGROUNDED_QUOTE",
                             message=(
@@ -205,6 +210,14 @@ class AuditGate:
                             ),
                         ))
                     else:
+                        if is_normalized_match(edge.source_quote, corpus):
+                            findings.append(AuditFinding(
+                                severity="info", code="QUOTE_NORMALIZED_MATCH",
+                                message=(
+                                    f"엣지 인용이 정규화 후에만 일치함: "
+                                    f"{edge.source_id}->{edge.target_id}"
+                                ),
+                            ))
                         findings.extend(_quote_quality_findings(
                             quote=edge.source_quote,
                             label=f"{edge.source_id}->{edge.target_id}",
@@ -217,8 +230,9 @@ class AuditGate:
                             node = node_by_id.get(node_id)
                             if node is not None and node.paragraph_id in paragraph_manifest:
                                 endpoint_paragraphs.append(paragraph_manifest[node.paragraph_id])
-                        endpoint_corpus = _canon(" ".join(endpoint_paragraphs))
-                        if endpoint_corpus and q not in endpoint_corpus:
+                        if endpoint_paragraphs and not quote_in(
+                            edge.source_quote, " ".join(endpoint_paragraphs)
+                        ):
                             findings.append(AuditFinding(
                                 severity="warning", code="DETACHED_EDGE_QUOTE",
                                 message=(

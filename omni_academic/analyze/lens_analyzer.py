@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.panel import Panel
 
 from omni_academic.config.lens import LensNotFoundError, load_lens
+from omni_academic.text.grounding import quote_in
 from omni_academic.text.paragraphs import assign_paragraph_ids
 
 console = Console()
@@ -194,7 +195,7 @@ class LensAnalyzer:
                 raise ValueError(
                     f"LLM lens analysis used unknown paragraph_id: {finding.paragraph_id}"
                 )
-            if finding.source_quote not in source:
+            if not quote_in(finding.source_quote, source):
                 raise ValueError(
                     "LLM lens analysis source_quote is not present in paragraph "
                     f"{finding.paragraph_id}: {finding.source_quote}"

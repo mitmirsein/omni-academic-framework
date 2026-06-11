@@ -133,6 +133,12 @@ Reserved provider boundary:
 
 ## Gate Layers
 
+All quote-grounding comparisons share one policy module, `omni_academic/text/grounding.py`:
+NFKC normalization, curly-quote/soft-hyphen folding, and whitespace collapse, with case preserved.
+Non-destructive extraction artifacts (NBSP, line breaks) therefore never flip a verdict between
+gates, and quotes that only match after normalization are reported as `QUOTE_NORMALIZED_MATCH`
+info findings.
+
 ### AuditGate
 
 File: `omni_academic/audit/gate.py`

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from rich.console import Console
 
 from omni_academic.draft.scribe import DraftReport
+from omni_academic.text.grounding import canon_quote, quote_in
 
 console = Console()
 
@@ -173,16 +174,10 @@ class PeerReviewPanel:
 
         for rev in report.reviews:
             for quote in rev.source_quotes:
-                q = quote.strip()
-                if not q:
+                if not canon_quote(quote):
                     continue
-                # 전체 코퍼스 중 하나에 부분문자열로 들어있는지 검증
-                found = False
-                for corpus_text in draft_corpus:
-                    if q in corpus_text:
-                        found = True
-                        break
-                if not found:
+                # 전체 코퍼스 중 하나에 (정규화 기준) 부분문자열로 들어있는지 검증
+                if not any(quote_in(quote, corpus_text) for corpus_text in draft_corpus):
                     raise ValueError(
                         f"Panelist '{rev.panelist}' referenced a source quote that is absent "
                         f"verbatim in the draft: \"{quote}\""

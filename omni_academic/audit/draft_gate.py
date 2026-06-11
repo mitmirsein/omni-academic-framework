@@ -13,14 +13,11 @@ from typing import Dict, List
 from omni_academic.audit.gate import AuditFinding, AuditReport
 from omni_academic.draft.scribe import DraftReport
 from omni_academic.ontology.extractor import OntologyMap
+from omni_academic.text.grounding import canon_quote, is_normalized_match, quote_in
 from omni_academic.text.paragraphs import assign_paragraph_ids
 
 _CLAIM_REF_RE = re.compile(r"\[(C\d+)\]")
 _PARA_REF_RE = re.compile(r"\[(P_\d+)\]")
-
-
-def _norm(text: str) -> str:
-    return " ".join((text or "").split())
 
 
 def _quote_len(text: str) -> int:
@@ -77,12 +74,13 @@ class DraftComplianceAuditor:
                 continue
 
             quote = claim.source_quote
+            para_text = paragraph_map[claim.paragraph_id]
             if not quote.strip():
                 findings.append(AuditFinding(
                     severity="error", code="MISSING_DRAFT_QUOTE",
                     message="claim source_quote 누락", source_ref=ref,
                 ))
-            elif quote not in paragraph_map[claim.paragraph_id]:
+            elif not quote_in(quote, para_text):
                 findings.append(AuditFinding(
                     severity="error", code="UNGROUNDED_DRAFT_QUOTE",
                     message=f"source_quote가 해당 문단에 없음(환각): {claim.paragraph_id}",
@@ -95,7 +93,16 @@ class DraftComplianceAuditor:
                     source_ref=ref,
                 ))
             else:
-                quote_refs.setdefault(_norm(quote).lower(), []).append(claim.claim_id)
+                if is_normalized_match(quote, para_text):
+                    findings.append(AuditFinding(
+                        severity="info", code="QUOTE_NORMALIZED_MATCH",
+                        message=(
+                            f"source_quote가 정규화(공백/유니코드) 후에만 일치함: "
+                            f"{claim.claim_id}"
+                        ),
+                        source_ref=ref,
+                    ))
+                quote_refs.setdefault(canon_quote(quote), []).append(claim.claim_id)
 
             if claim.node_id is not None and claim.node_id not in node_ids:
                 findings.append(AuditFinding(

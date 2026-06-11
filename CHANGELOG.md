@@ -8,6 +8,8 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Added
 
+- Added `omni_academic/text/grounding.py` as the single quote-grounding policy (NFKC + curly-quote/soft-hyphen normalization + whitespace collapse, case-preserving) shared by every gate and retry verifier.
+- Added `QUOTE_NORMALIZED_MATCH` info findings so quotes rescued by normalization stay traceable.
 - Added `SCHEMAS.md` to document artifact contracts for downstream consumers.
 - Added golden fixture tests for ontology, audit, draft, review, failure, manifest, and status contracts.
 - Added `--show-run` next-step guidance for blocked and failed run statuses.
@@ -15,6 +17,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Changed
 
+- Unified quote matching across `AuditGate`, `DraftComplianceAuditor`, `LensComplianceAuditor`, `ScribeAgent`, `LensAnalyzer`, and `PeerReviewPanel`: non-destructive variants (NBSP, curly quotes, line-break collapse) now match everywhere, while case differences are no longer forgiven by the ontology gate.
 - Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.
 - Centralized the current supported/reserved LLM provider contract in code-level constants.
 - Split setup questions and diagnostics rows into small typed helpers for easier maintenance.
