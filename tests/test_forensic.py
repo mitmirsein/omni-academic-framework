@@ -22,10 +22,10 @@ def test_doi_syntax(doi, ok):
 def test_forensic_flags_ghost_doi_and_dead_url(monkeypatch):
     auditor = ForensicAuditor()
 
-    async def fake_resolves(self, client, url):
-        return "good" in url  # only URLs containing 'good' resolve
+    async def fake_probe(self, client, url):
+        return 200 if "good" in url else 404  # 'good' URL만 실존
 
-    monkeypatch.setattr(ForensicAuditor, "_resolves", fake_resolves)
+    monkeypatch.setattr(ForensicAuditor, "_probe_status", fake_probe)
 
     papers = [
         PaperMetadata(title="ghost", authors=["X"], doi="10.9999/bad.ref"),
@@ -41,6 +41,45 @@ def test_forensic_flags_ghost_doi_and_dead_url(monkeypatch):
     assert "MALFORMED_DOI" in codes
     assert not ForensicAuditor.passed(findings)
     assert ForensicAuditor.failed_indices(findings) == {0, 3}
+
+
+@pytest.mark.parametrize("status,verdict", [
+    (200, "ok"),
+    (302, "ok"),
+    (404, "missing"),
+    (410, "missing"),
+    (401, "indeterminate"),
+    (403, "indeterminate"),
+    (429, "indeterminate"),
+    (500, "indeterminate"),
+    (503, "indeterminate"),
+    (400, "indeterminate"),  # 부재 증거로 보기 약한 4xx
+    (None, "indeterminate"),  # 네트워크 오류
+])
+def test_status_classification_matrix(status, verdict):
+    assert ForensicAuditor.classify_status(status) == verdict
+
+
+def test_bot_blocked_doi_is_warning_not_ghost(monkeypatch):
+    """403/429는 실존 부정 증거가 아니다 — 실존 인용을 차단하면 안 된다."""
+    auditor = ForensicAuditor()
+
+    async def fake_probe(self, client, url):
+        return 403  # 출판사 봇 차단 시뮬레이션
+
+    monkeypatch.setattr(ForensicAuditor, "_probe_status", fake_probe)
+
+    papers = [PaperMetadata(
+        title="paywalled", authors=["X"],
+        doi="10.1234/real.but.blocked", url="https://publisher.example/p",
+    )]
+    findings = asyncio.run(auditor.verify_papers(papers))
+    codes = {f.code for f in findings}
+    assert codes == {"UNVERIFIABLE_DOI", "UNVERIFIABLE_URL"}
+    assert all(f.severity == "warning" for f in findings)
+    # warning이므로 HITL 후보에서 차단되지 않는다.
+    assert ForensicAuditor.passed(findings)
+    assert ForensicAuditor.failed_indices(findings) == set()
 
 
 def test_lightpanda_returns_empty_on_failure_not_fake(monkeypatch):
