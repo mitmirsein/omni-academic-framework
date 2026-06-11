@@ -20,6 +20,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Changed
 
+- LLM providers now accumulate a per-instance `usage_log`; manifests record `<step>_calls` plus `<step>_total_input_tokens`/`<step>_total_output_tokens` for every LLM-backed step, so retry costs are no longer lost (existing `<step>`/`<step>_attempts` keys unchanged).
 - `ForensicAuditor` now sends a standard User-Agent and classifies probe results on a verdict matrix: only 404/410 prove absence (`GHOST_DOI` error); 403/429/5xx/network errors are reported as `UNVERIFIABLE_DOI`/`UNVERIFIABLE_URL` warnings instead of blocking real citations that merely bot-block HEAD requests.
 - `assign_paragraph_ids` now subdivides blocks longer than 350 tokens at sentence boundaries (sequential `P_\d+` IDs preserved), keeping quote-in-paragraph verification meaningful for PDF-style inputs; the audit gate flags externally supplied oversized paragraphs as `COARSE_PARAGRAPH` warnings.
 - `AnthropicProvider` now hard-fails when a response is truncated at the `max_tokens` budget (`stop_reason=max_tokens`), instead of silently passing a partially lost structured output downstream; the error points to `OMNI_LLM_MAX_TOKENS`.

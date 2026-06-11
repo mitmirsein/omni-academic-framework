@@ -76,6 +76,28 @@ def _make_provider(use_mock: bool):
     return AnthropicProvider(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
 
 
+def _provider_usage(step: str, provider, attempts: "int | None" = None) -> dict:
+    """step별 LLM usage 요약: 마지막 호출(호환) + 전체 호출 로그 + 토큰 합산.
+
+    재시도가 있으면 마지막 호출 usage만으로는 비용 감사가 부정확하다 —
+    provider.usage_log 전체와 input/output 토큰 합계를 함께 기록한다.
+    """
+    out: dict = {step: getattr(provider, "last_usage", None)}
+    if attempts is not None:
+        out[f"{step}_attempts"] = attempts
+    log = list(getattr(provider, "usage_log", None) or [])
+    if log:
+        out[f"{step}_calls"] = log
+        for key in ("input_tokens", "output_tokens"):
+            values = [
+                u.get(key) for u in log
+                if isinstance(u, dict) and isinstance(u.get(key), int)
+            ]
+            if values:
+                out[f"{step}_total_{key}"] = sum(values)
+    return out
+
+
 def _lens_ontology_directive(lens: str) -> str:
     """렌즈의 도메인 온톨로지 지시(예: 신학 아포리아 보존)를 best-effort 로드.
 
@@ -525,10 +547,9 @@ class OmniSupervisorRouter:
             store.note("error_message", str(e))
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
-        store.note("llm_usage", {
-            "ontology": provider.last_usage,
-            "ontology_attempts": extractor.last_attempts,
-        })
+        store.note(
+            "llm_usage", _provider_usage("ontology", provider, extractor.last_attempts)
+        )
 
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
@@ -574,10 +595,10 @@ class OmniSupervisorRouter:
         if llm_analysis:
             provider = _make_provider(self.use_mock)
             report = analyzer.build_llm_analysis(target_document, lens, provider)
-            store.note("llm_usage", {
-                "analysis": provider.last_usage,
-                "analysis_attempts": analyzer.last_attempts,
-            })
+            store.note(
+                "llm_usage",
+                _provider_usage("analysis", provider, analyzer.last_attempts),
+            )
             store.write_lens_analysis(report, analyzer.render_analysis(report))
             lens_audit = LensComplianceAuditor().verify(report, target_document, lens)
             store.write_lens_audit(lens_audit)
@@ -602,7 +623,7 @@ class OmniSupervisorRouter:
                     target_document, lens, report, critic_provider,
                 )
                 usage = store._meta.get("llm_usage") or {}
-                usage["critic"] = critic_provider.last_usage
+                usage.update(_provider_usage("critic", critic_provider))
                 store.note("llm_usage", usage)
                 critic_audit = LensComplianceAuditor().verify_critic(
                     critic, target_document
@@ -657,10 +678,10 @@ class OmniSupervisorRouter:
             store.note("status", run_status.ANALYSIS_FAILED)
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
-        store.note("llm_usage", {
-            "ontology": ontology_provider.last_usage,
-            "ontology_attempts": extractor.last_attempts,
-        })
+        store.note(
+            "llm_usage",
+            _provider_usage("ontology", ontology_provider, extractor.last_attempts),
+        )
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
         ontology_audit = AuditGate().verify_ontology(
@@ -685,10 +706,7 @@ class OmniSupervisorRouter:
             self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
             return
         usage = store._meta.get("llm_usage") or {}
-        usage.update({
-            "draft": provider.last_usage,
-            "draft_attempts": scribe.last_attempts,
-        })
+        usage.update(_provider_usage("draft", provider, scribe.last_attempts))
         store.note("llm_usage", usage)
         store.write_draft(draft, scribe.render_draft(draft))
 
@@ -786,10 +804,9 @@ class OmniSupervisorRouter:
             store.note("status", run_status.BLOCKED_BY_REVIEW_GROUNDING)
             store.note("review_grounding_passed", False)
             store.note("review_passed", False)
-            store.note("llm_usage", {
-                "review": provider.last_usage,
-                "review_attempts": panel.last_attempts,
-            })
+            store.note(
+                "llm_usage", _provider_usage("review", provider, panel.last_attempts)
+            )
             store.note("error_message", str(e))
             store.write_failure_artifact({
                 "stage": "peer_review_grounding",
@@ -801,10 +818,9 @@ class OmniSupervisorRouter:
             )
             return
 
-        store.note("llm_usage", {
-            "review": provider.last_usage,
-            "review_attempts": panel.last_attempts,
-        })
+        store.note(
+            "llm_usage", _provider_usage("review", provider, panel.last_attempts)
+        )
         store.note("review_grounding_passed", True)
         store.write_review(report, panel.render_review(report))
 

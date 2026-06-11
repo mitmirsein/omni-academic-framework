@@ -19,6 +19,17 @@ class BaseLLMProvider(ABC):
 
     #: 직전 호출의 model/usage 메타데이터 (운용 감사용). 호출 후 갱신된다.
     last_usage: "Optional[dict]" = None
+    #: 이 provider 인스턴스의 모든 호출 usage 누적(재시도 비용 유실 방지).
+    usage_log: "Optional[list]" = None
+
+    def _record_usage(self, usage: dict) -> None:
+        """호출 usage를 last_usage 갱신 + usage_log에 누적 기록한다."""
+        self.last_usage = usage
+        log = getattr(self, "usage_log", None)
+        if log is None:
+            log = []
+            self.usage_log = log
+        log.append(usage)
 
     @abstractmethod
     def generate_structured_output(self, prompt: str, schema: type[BaseModel]) -> BaseModel:
@@ -36,7 +47,7 @@ class MockProvider(BaseLLMProvider):
         import re
 
         # 운용 감사: mock임을 명시 낙인(실 usage가 아님을 위장 금지).
-        self.last_usage = {"model": "mock", "mock": True, "schema": schema.__name__}
+        self._record_usage({"model": "mock", "mock": True, "schema": schema.__name__})
 
         if schema.__name__ == "LensAnalysisReport":
             import ast
@@ -345,10 +356,10 @@ class AnthropicProvider(BaseLLMProvider):
         except self._anthropic.APIError as e:
             raise RuntimeError(f"Anthropic API 호출 실패: {e}") from e
 
-        # 운용 감사: 실제 model + 토큰 usage 기록(매 호출 갱신).
+        # 운용 감사: 실제 model + 토큰 usage 기록(매 호출 누적).
         usage = getattr(response, "usage", None)
         stop_reason = getattr(response, "stop_reason", None)
-        self.last_usage = {
+        self._record_usage({
             "model": getattr(response, "model", self.model),
             "mock": False,
             "schema": schema.__name__,
@@ -358,7 +369,7 @@ class AnthropicProvider(BaseLLMProvider):
             "output_tokens": getattr(usage, "output_tokens", None),
             "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
             "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
-        }
+        })
 
         if stop_reason == "max_tokens":
             # 잘린 구조화 출력은 스키마 검증을 '우연히' 통과한 채 노드/claim을

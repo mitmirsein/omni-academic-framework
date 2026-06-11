@@ -64,7 +64,7 @@ Common optional fields:
 | `paragraph_coverage` | float | coverage auditor ran (see `coverage.json`) |
 | `tail_coverage` | float | coverage auditor ran |
 | `token_ratio` | float | coverage auditor ran |
-| `llm_usage` | object | provider/model/usage metadata for LLM-backed steps |
+| `llm_usage` | object | provider/model/usage metadata for LLM-backed steps; per step: `<step>` (last call), `<step>_attempts`, `<step>_calls` (all calls), `<step>_total_input_tokens`/`<step>_total_output_tokens` when available |
 | `error_message` | string | exception or blocked-path diagnostic |
 | `has_failure_artifact` | boolean | `failure.json` was written |
 | `recon_cache` | object | recon cache provenance |
