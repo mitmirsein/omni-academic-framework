@@ -115,6 +115,8 @@ Consumers should treat any status other than `completed` as not fully passed.
 
 Object mapping paragraph IDs to source paragraph text.
 
+Blocks longer than 350 whitespace tokens (e.g., page-sized PDF extractions) are subdivided at sentence boundaries before IDs are assigned, so `P_\d+` numbering stays sequential and quote-in-paragraph verification keeps its power. Externally supplied manifests with oversized paragraphs are flagged by the audit gate as `COARSE_PARAGRAPH` warnings.
+
 Example:
 
 ```json

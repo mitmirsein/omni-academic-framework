@@ -20,6 +20,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Changed
 
+- `assign_paragraph_ids` now subdivides blocks longer than 350 tokens at sentence boundaries (sequential `P_\d+` IDs preserved), keeping quote-in-paragraph verification meaningful for PDF-style inputs; the audit gate flags externally supplied oversized paragraphs as `COARSE_PARAGRAPH` warnings.
 - `AnthropicProvider` now hard-fails when a response is truncated at the `max_tokens` budget (`stop_reason=max_tokens`), instead of silently passing a partially lost structured output downstream; the error points to `OMNI_LLM_MAX_TOKENS`.
 - Unified quote matching across `AuditGate`, `DraftComplianceAuditor`, `LensComplianceAuditor`, `ScribeAgent`, `LensAnalyzer`, and `PeerReviewPanel`: non-destructive variants (NBSP, curly quotes, line-break collapse) now match everywhere, while case differences are no longer forgiven by the ontology gate.
 - Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.

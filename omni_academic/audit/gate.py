@@ -131,6 +131,22 @@ class AuditGate:
             corpus = (
                 " ".join(paragraph_manifest.values()) if has_text else ""
             )
+            if has_text:
+                from omni_academic.text.paragraphs import MAX_PARAGRAPH_TOKENS
+
+                coarse = [
+                    pid for pid, text in paragraph_manifest.items()
+                    if len((text or "").split()) > MAX_PARAGRAPH_TOKENS
+                ]
+                if coarse:
+                    sample = ", ".join(coarse[:5]) + ("..." if len(coarse) > 5 else "")
+                    findings.append(AuditFinding(
+                        severity="warning", code="COARSE_PARAGRAPH",
+                        message=(
+                            f"문단 {len(coarse)}개가 {MAX_PARAGRAPH_TOKENS} 토큰을 "
+                            f"초과 — quote in-paragraph 검증력 약화: {sample}"
+                        ),
+                    ))
             for node in ontology.nodes:
                 if node.paragraph_id not in paragraph_manifest:
                     findings.append(AuditFinding(
