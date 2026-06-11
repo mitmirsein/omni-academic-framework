@@ -512,16 +512,23 @@ class OmniSupervisorRouter:
         annotated, manifest = assign_paragraph_ids(target_document)
         store.write_paragraphs(manifest)
 
+        provider = _make_provider(self.use_mock)
+        extractor = OntologyExtractor(llm_provider=provider)
         try:
-            extractor = OntologyExtractor(llm_provider=_make_provider(self.use_mock))
             ontology_map = extractor.extract(
-                annotated, directive=_lens_ontology_directive(lens)
+                annotated,
+                directive=_lens_ontology_directive(lens),
+                paragraph_map=manifest,
             )
         except (ValueError, NotImplementedError, RuntimeError) as e:
             store.note("status", run_status.ANALYSIS_FAILED)
             store.note("error_message", str(e))
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
+        store.note("llm_usage", {
+            "ontology": provider.last_usage,
+            "ontology_attempts": extractor.last_attempts,
+        })
 
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
@@ -638,14 +645,22 @@ class OmniSupervisorRouter:
         store.write_paragraphs(manifest)
 
         # 1) 온톨로지 추출 (초안의 근거 골격)
+        ontology_provider = _make_provider(self.use_mock)
+        extractor = OntologyExtractor(llm_provider=ontology_provider)
         try:
-            ontology_map = OntologyExtractor(
-                llm_provider=_make_provider(self.use_mock)
-            ).extract(annotated, directive=_lens_ontology_directive(lens))
+            ontology_map = extractor.extract(
+                annotated,
+                directive=_lens_ontology_directive(lens),
+                paragraph_map=manifest,
+            )
         except (ValueError, NotImplementedError, RuntimeError) as e:
             store.note("status", run_status.ANALYSIS_FAILED)
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
+        store.note("llm_usage", {
+            "ontology": ontology_provider.last_usage,
+            "ontology_attempts": extractor.last_attempts,
+        })
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
         ontology_audit = AuditGate().verify_ontology(
@@ -669,10 +684,12 @@ class OmniSupervisorRouter:
             store.note("status", run_status.ANALYSIS_FAILED)
             self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
             return
-        store.note("llm_usage", {
+        usage = store._meta.get("llm_usage") or {}
+        usage.update({
             "draft": provider.last_usage,
             "draft_attempts": scribe.last_attempts,
         })
+        store.note("llm_usage", usage)
         store.write_draft(draft, scribe.render_draft(draft))
 
         # 3) Draft Compliance Gate (claims ledger 결정론적 감사)

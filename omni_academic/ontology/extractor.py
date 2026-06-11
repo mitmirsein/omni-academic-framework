@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 from rich.console import Console
@@ -59,7 +59,7 @@ class OntologyMap(BaseModel):
 class OntologyExtractor:
     """
     Omni-Academic Ontology Extractor (Phase C)
-    깊은 의미 해석을 배제하고 텍스트를 범용 클래스와 표준 관계어휘(Triples) 기반의 
+    깊은 의미 해석을 배제하고 텍스트를 범용 클래스와 표준 관계어휘(Triples) 기반의
     JSON 지형도로 구조화하는 모듈입니다.
     """
     def __init__(self, llm_provider=None):
@@ -70,21 +70,86 @@ class OntologyExtractor:
             )
         self.console = console
         self.llm_provider = llm_provider
+        self.last_attempts: int = 0
 
-    def extract(self, document_text: str, directive: str = "") -> OntologyMap:
+    def extract(
+        self,
+        document_text: str,
+        directive: str = "",
+        paragraph_map: Optional[dict] = None,
+        max_attempts: int = 2,
+    ) -> OntologyMap:
+        """온톨로지를 추출하고, paragraph_map이 주어지면 grounding 위반 시
+        구체 오류를 피드백해 재시도한다 (ScribeAgent/LensAnalyzer와 동일 패턴).
+
+        최대 시도 후에도 grounding이 깨지면 마지막 맵을 반환한다 — 크래시
+        대신 AuditGate가 결정론적으로 실패를 기록하게 한다.
+        """
         self.console.print(f"[bold magenta]🕸️ 텍스트에서 Ontology Map(RDF Triples)을 추출 중입니다... (Provider: {self.llm_provider.__class__.__name__})[/bold magenta]")
 
-        prompt = "Analyze the following text and return a structured ontology map."
+        base_prompt = "Analyze the following text and return a structured ontology map."
         # 도메인 지시(렌즈 어댑터에서 주입). 코어는 도메인 용어를 모른다(헌법 §2):
         # 신학 등 분야별 아포리아 보존 강조는 lenses/*.yaml 의 ontology_directive 가 싣는다.
         if directive and directive.strip():
-            prompt += (
+            base_prompt += (
                 "\n\nDomain extraction directive (obey; preserve, do not flatten):\n"
                 f"{directive.strip()}"
             )
-        prompt += f"\n\n{document_text}"
+        base_prompt += f"\n\n{document_text}"
 
-        # LLM Provider에 의존하여 Pydantic 모델을 강제 반환받음
-        ontology_map = self.llm_provider.generate_structured_output(prompt, OntologyMap)
+        if paragraph_map is None:
+            # grounding 검증 기준이 없으면 재시도 근거도 없다 → 1회 추출.
+            self.last_attempts = 1
+            return self.llm_provider.generate_structured_output(base_prompt, OntologyMap)
 
+        prompt = base_prompt
+        ontology_map = None
+        for attempt in range(1, max(1, max_attempts) + 1):
+            self.last_attempts = attempt
+            ontology_map = self.llm_provider.generate_structured_output(prompt, OntologyMap)
+            try:
+                self._verify_grounding(ontology_map, paragraph_map)
+                return ontology_map
+            except ValueError as e:
+                if attempt >= max_attempts:
+                    break
+                self.console.print(
+                    f"[yellow]⚠️ Ontology grounding 실패 (시도 {attempt}/{max_attempts}) "
+                    f"→ 교정 재시도: {e}[/yellow]"
+                )
+                prompt = (
+                    f"{base_prompt}\n\n"
+                    "## CORRECTION REQUIRED (previous attempt failed grounding)\n"
+                    f"{e}\n"
+                    "Re-emit the FULL ontology map. Every node.paragraph_id MUST be a "
+                    "real [P_XXXX] marker from the supplied text, and every node/edge "
+                    "source_quote MUST be an exact verbatim substring of the source. "
+                    "Drop any node or edge you cannot ground."
+                )
         return ontology_map
+
+    @staticmethod
+    def _verify_grounding(ontology: "OntologyMap", paragraph_map: dict) -> None:
+        """재시도 루프용 경량 grounding 검증(공식 게이트는 AuditGate)."""
+        from omni_academic.text.grounding import quote_in
+
+        corpus = " ".join(paragraph_map.values())
+        for node in ontology.nodes:
+            if node.paragraph_id not in paragraph_map:
+                raise ValueError(
+                    f"ontology node {node.id} used unknown paragraph_id: "
+                    f"{node.paragraph_id}"
+                )
+            if node.source_quote and not quote_in(
+                node.source_quote, paragraph_map[node.paragraph_id]
+            ):
+                raise ValueError(
+                    f"ontology node {node.id} source_quote is not present in "
+                    f"paragraph {node.paragraph_id}: {node.source_quote}"
+                )
+        for edge in ontology.edges:
+            if edge.source_quote and not quote_in(edge.source_quote, corpus):
+                raise ValueError(
+                    f"ontology edge {edge.source_id}->{edge.target_id} source_quote "
+                    f"is not present in the source: {edge.source_quote}"
+                )
