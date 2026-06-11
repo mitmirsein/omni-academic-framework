@@ -8,6 +8,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Added
 
+- Added `--glossary` (constitution §4 MVP): draft/analyze runs scan the document opening, extract a source-bound dynamic glossary (terms + style notes, each anchored to a verbatim quote), audit it deterministically, and inject only a passing glossary into the generation prompt (`glossary.json`/`glossary.md`/`glossary_audit.json`).
 - Added `--independent-panel` review mode: four isolated panelist calls plus a Chief Editor synthesis call (anchoring between personas is structurally blocked; grounding retries are isolated per panelist; ~5x cost, opt-in; `review_mode` recorded in the manifest).
 - Added `pytest-cov` to the dev extras; CI now prints a coverage report (visibility only, no fail threshold yet — baseline 66%).
 - Added `OMNI_LLM_MODEL` to override the live LLM model without code changes; `--status` now shows `OMNI_LLM_MODEL` and `OMNI_LLM_MAX_TOKENS` diagnostics and `.env.example` documents both.

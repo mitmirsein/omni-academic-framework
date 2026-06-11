@@ -139,6 +139,23 @@ class MockProvider(BaseLLMProvider):
                 ],
             })
 
+        if schema.__name__ == "GlossaryReport":
+            blocks = re.findall(r"\[(P_\d+)\]\s*(.+?)(?=\n\[P_\d+\]|\Z)", prompt, re.S)
+            terms = []
+            for pid, text in blocks[:2]:
+                words = text.split()
+                if len(words) >= 2:
+                    terms.append({
+                        "term": " ".join(words[:2]),
+                        "definition": "Mock working definition based on in-text usage.",
+                        "paragraph_id": pid,
+                        "source_quote": " ".join(words[:6]),
+                    })
+            return schema.model_validate({
+                "terms": terms,
+                "style_notes": ["Mock style note for pipeline verification."],
+            })
+
         if schema.__name__ == "PanelistReview":
             # 독립 패널 모드: 프롬프트의 패널리스트 정체성과 draft 제목을 에코.
             name_match = re.search(r"^Panelist Name:\s*(.+)$", prompt, re.M)

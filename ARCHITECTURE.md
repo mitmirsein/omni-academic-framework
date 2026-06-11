@@ -194,6 +194,16 @@ through the lens config field `coverage_thresholds` (`min_paragraph_coverage`,
 `min_tail_coverage`, `min_token_ratio`, `max_token_ratio`) — the core stays domain-agnostic.
 Results are written to `coverage.json` and mirrored into `manifest.json`.
 
+### Dynamic Glossary (constitution §4)
+
+File: `omni_academic/analyze/glossary.py`
+
+With `--glossary` on draft/analyze runs, the opening of the document is scanned to extract the
+terms the text itself uses, each bound to a `paragraph_id` and verbatim `source_quote`. A
+deterministic audit (`glossary_audit.json`) blocks hallucinated or imported terminology: only a
+passing glossary is injected into the generation prompt. No static/external dictionaries are
+consulted — domain vocabularies stay in lens adapters.
+
 ### Peer Review Grounding
 
 File: `omni_academic/analyze/peer_review.py`

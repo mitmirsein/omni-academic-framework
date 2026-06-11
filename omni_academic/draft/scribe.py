@@ -99,6 +99,7 @@ class ScribeAgent:
         lens_name: str,
         llm_provider,
         max_attempts: int = 2,
+        extra_context: str = "",
     ) -> DraftReport:
         """초안을 생성하고 grounding 위반 시 구체 오류를 피드백해 재시도한다.
 
@@ -128,7 +129,8 @@ class ScribeAgent:
             f"Lens: {lens_config.get('name', lens_name)} ({lens_name})\n"
             f"Focus Areas: {lens_config.get('focus_areas', []) or []}\n"
             f"Lens Prompt:\n{lens_config.get('analysis_prompt', '')}\n\n"
-            f"Ontology Map:\n{self._ontology_digest(ontology)}\n\n"
+            + (f"{extra_context}\n\n" if extra_context else "")
+            + f"Ontology Map:\n{self._ontology_digest(ontology)}\n\n"
             f"Source Paragraphs:\n{annotated}"
         )
         prompt = base_prompt

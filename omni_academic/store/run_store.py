@@ -164,6 +164,7 @@ class RunStore:
         self._draft_audit = None
         self._review = None
         self._coverage = None
+        self._glossary_audit = None
 
     @classmethod
     def create(cls, query: str, lens: str, *, mock: bool = False,
@@ -247,6 +248,15 @@ class RunStore:
         self._write_json("failure.json", payload)
         self._meta["has_failure_artifact"] = True
 
+    def write_glossary(self, report, markdown: str, audit_report):
+        """동적 용어집(§4) 보존: glossary.json/md + 결정론 감사 결과."""
+        self._write_json("glossary.json", report)
+        (self.dir / "glossary.md").write_text(markdown or "", encoding="utf-8")
+        self._artifacts.append("glossary.md")
+        self._glossary_audit = audit_report
+        self._write_json("glossary_audit.json", audit_report)
+        self._meta["glossary_audit_passed"] = bool(getattr(audit_report, "passed", False))
+
     def write_coverage(self, report):
         """토큰 비율 방어선(헌법 §3) 지표 보존: coverage.json + manifest 요약."""
         self._coverage = report
@@ -324,6 +334,7 @@ class RunStore:
                 f"token ratio `{_field(cov, 'token_ratio', 0.0)}`"
             )
         for key, label in (
+            ("glossary_audit_passed", "Glossary Audit"),
             ("lens_audit_passed", "Lens Audit"),
             ("draft_passed", "Draft Gate"),
             ("review_grounding_passed", "Review Grounding"),

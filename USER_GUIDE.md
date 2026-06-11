@@ -133,6 +133,8 @@ uv run --extra llm omni ./paper.md --module draft --lens general
 
 Draft는 먼저 ontology를 만들고 audit합니다. ontology audit이 실패하면 draft를 만들지 않고 status를 `blocked_by_audit`으로 남깁니다.
 
+`--glossary`를 붙이면 문서 앞부분에서 동적 용어집을 추출·검증해 집필 프롬프트에 주입합니다. 검증(`glossary_audit.json`)에 반려된 용어집은 주입되지 않습니다(fail-closed).
+
 Draft claim은 다음 조건을 만족해야 합니다.
 
 - `claims[]`에 등록됨

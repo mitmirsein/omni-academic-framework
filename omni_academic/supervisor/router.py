@@ -40,6 +40,7 @@ class RouterRequest(BaseModel):
     llm_analysis: bool = False
     llm_critic: bool = False
     independent_panel: bool = False
+    glossary: bool = False
 
 
 async def _probe_url(url: str) -> dict:
@@ -364,9 +365,13 @@ class OmniSupervisorRouter:
                     request.lens,
                     llm_analysis=request.llm_analysis,
                     llm_critic=request.llm_critic,
+                    glossary=request.glossary,
                 )
             elif request.target_module == ModuleType.DRAFT:
-                self._run_draft(store, _resolve_document(request.query), request.lens)
+                self._run_draft(
+                    store, _resolve_document(request.query), request.lens,
+                    glossary=request.glossary,
+                )
             elif request.target_module == ModuleType.REVIEW:
                 self._run_review(
                     store, request.query, request.lens,
@@ -491,6 +496,42 @@ class OmniSupervisorRouter:
         self.console.print("[bold green]원문 징발 성공! Ontology Extractor로 전달합니다...[/bold green]\n")
         self._run_ontology(store, markdown_text, lens)
 
+    def _build_glossary(self, store: RunStore, target_document: str) -> str:
+        """동적 용어집(§4) 생성·감사·보존 후 프롬프트 주입 블록을 반환한다.
+
+        fail-closed: 감사에 반려된 용어집은 주입하지 않고 빈 문자열을
+        반환한다(메인 모듈 흐름은 차단하지 않음 — 진단 artifact는 남는다).
+        """
+        from omni_academic.analyze.glossary import GlossaryBuilder
+        from omni_academic.text.paragraphs import assign_paragraph_ids
+
+        provider = _make_provider(self.use_mock)
+        builder = GlossaryBuilder()
+        try:
+            report = builder.build(target_document, provider)
+        except (ValueError, NotImplementedError, RuntimeError) as e:
+            self.console.print(
+                f"[yellow]⚠️ Glossary 생성 실패 — 주입 없이 계속: {e}[/yellow]"
+            )
+            return ""
+        _, paragraph_map = assign_paragraph_ids(target_document)
+        audit = builder.verify(report, paragraph_map)
+        store.write_glossary(report, builder.render(report), audit)
+        usage = store._meta.get("llm_usage") or {}
+        usage.update(_provider_usage("glossary", provider, builder.last_attempts))
+        store.note("llm_usage", usage)
+        if not audit.passed:
+            self.console.print(
+                "   => [bold red]Glossary 감사 반려 — 주입하지 않고 계속 "
+                "(fail-closed)[/bold red]"
+            )
+            return ""
+        self.console.print(
+            f"   => [bold green]Dynamic Glossary 장착: {len(report.terms)} terms "
+            f"→ glossary.json[/bold green]"
+        )
+        return GlossaryBuilder.injection_block(report)
+
     def _write_coverage(
         self,
         store: RunStore,
@@ -599,6 +640,7 @@ class OmniSupervisorRouter:
         *,
         llm_analysis: bool = False,
         llm_critic: bool = False,
+        glossary: bool = False,
     ):
         from omni_academic.analyze.lens_analyzer import LensAnalyzer
         from omni_academic.audit.lens_gate import LensComplianceAuditor
@@ -618,12 +660,16 @@ class OmniSupervisorRouter:
         analyzer.print_brief(brief)
         store.write_lens_brief(brief)
         if llm_analysis:
-            provider = _make_provider(self.use_mock)
-            report = analyzer.build_llm_analysis(target_document, lens, provider)
-            store.note(
-                "llm_usage",
-                _provider_usage("analysis", provider, analyzer.last_attempts),
+            extra_context = (
+                self._build_glossary(store, target_document) if glossary else ""
             )
+            provider = _make_provider(self.use_mock)
+            report = analyzer.build_llm_analysis(
+                target_document, lens, provider, extra_context=extra_context,
+            )
+            usage = store._meta.get("llm_usage") or {}
+            usage.update(_provider_usage("analysis", provider, analyzer.last_attempts))
+            store.note("llm_usage", usage)
             store.write_lens_analysis(report, analyzer.render_analysis(report))
             lens_audit = LensComplianceAuditor().verify(report, target_document, lens)
             store.write_lens_audit(lens_audit)
@@ -676,7 +722,10 @@ class OmniSupervisorRouter:
                 "(LLM 분석은 --llm-analysis 필요)[/bold yellow]"
             )
 
-    def _run_draft(self, store: RunStore, target_document: str, lens: str):
+    def _run_draft(
+        self, store: RunStore, target_document: str, lens: str,
+        *, glossary: bool = False,
+    ):
         from omni_academic.audit.draft_gate import DraftComplianceAuditor
         from omni_academic.audit.gate import AuditGate
         from omni_academic.config.lens import LensNotFoundError
@@ -689,6 +738,11 @@ class OmniSupervisorRouter:
         )
         annotated, manifest = assign_paragraph_ids(target_document)
         store.write_paragraphs(manifest)
+
+        # 0) (선택) 동적 용어집 — 검증 통과 시에만 집필 프롬프트에 주입(§4)
+        extra_context = (
+            self._build_glossary(store, target_document) if glossary else ""
+        )
 
         # 1) 온톨로지 추출 (초안의 근거 골격)
         ontology_provider = _make_provider(self.use_mock)
@@ -703,10 +757,11 @@ class OmniSupervisorRouter:
             store.note("status", run_status.ANALYSIS_FAILED)
             self.console.print(f"[bold red]Ontology 추출 불가: {e}[/bold red]")
             return
-        store.note(
-            "llm_usage",
-            _provider_usage("ontology", ontology_provider, extractor.last_attempts),
+        usage = store._meta.get("llm_usage") or {}
+        usage.update(
+            _provider_usage("ontology", ontology_provider, extractor.last_attempts)
         )
+        store.note("llm_usage", usage)
         self._last_ontology = ontology_map
         store.write_ontology(ontology_map)
         ontology_audit = AuditGate().verify_ontology(
@@ -725,7 +780,10 @@ class OmniSupervisorRouter:
         scribe = ScribeAgent()
         provider = _make_provider(self.use_mock)
         try:
-            draft = scribe.build_draft(target_document, ontology_map, lens, provider)
+            draft = scribe.build_draft(
+                target_document, ontology_map, lens, provider,
+                extra_context=extra_context,
+            )
         except LensNotFoundError as e:
             store.note("status", run_status.ANALYSIS_FAILED)
             self.console.print(f"[bold red]❌ Error: {e}[/bold red]")
@@ -915,6 +973,11 @@ def main():
              "(관점 격리, 비용 약 5배)",
     )
     parser.add_argument(
+        "--glossary", action="store_true",
+        help="draft/analyze 모듈에서 문서 앞부분 스캔으로 동적 용어집을 추출·검증해 "
+             "프롬프트에 주입 (감사 반려 시 주입하지 않음)",
+    )
+    parser.add_argument(
         "--status", action="store_true",
         help="현재 시스템 설정 및 API Key 등 로컬 진단/셋업 화면을 출력",
     )
@@ -977,6 +1040,7 @@ def main():
         llm_analysis=args.llm_analysis or args.llm_critic,
         llm_critic=args.llm_critic,
         independent_panel=args.independent_panel,
+        glossary=args.glossary,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))

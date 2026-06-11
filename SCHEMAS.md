@@ -53,6 +53,7 @@ Common optional fields:
 | `lens_critic_passed` | boolean | `--llm-critic` generated a critic report |
 | `lens_critic_audit_passed` | boolean | critic grounding audit ran |
 | `draft_passed` | boolean | draft compliance audit ran |
+| `glossary_audit_passed` | boolean | `--glossary` generated a dynamic glossary (false = not injected) |
 | `draft_blocked_by_audit` | boolean | draft was skipped after ontology audit failure |
 | `review_grounding_passed` | boolean | peer-review grounding validator ran |
 | `review_passed` | boolean | review decision was `Accept` or `Major Revision` |
@@ -262,6 +263,29 @@ Contract:
 - `findings` only contains `warning` entries produced when the lens config defines `coverage_thresholds` (`min_paragraph_coverage`, `min_tail_coverage`, `min_token_ratio`, `max_token_ratio`).
 - This artifact is diagnostic: it never blocks a run by itself.
 - `paragraph_coverage`, `tail_coverage`, and `token_ratio` are mirrored into `manifest.json`.
+
+## `glossary.json`
+
+Model: `GlossaryReport` (written with `--glossary` on draft/analyze runs, plus `glossary.md` and `glossary_audit.json`)
+
+```json
+{
+  "terms": [
+    {
+      "term": "Kenosis",
+      "definition": "working definition based on in-text usage",
+      "paragraph_id": "P_0001",
+      "source_quote": "verbatim quote from that paragraph"
+    }
+  ],
+  "style_notes": ["observed tense/citation/register notes"]
+}
+```
+
+Contract:
+
+- Every `term` must occur in the source text and every `source_quote` must appear verbatim in its cited paragraph (deterministic audit in `glossary_audit.json`).
+- A glossary that fails its audit is preserved for diagnosis but is NOT injected into prompts (fail-closed); the run itself is not blocked.
 
 ## `lens_analysis.json`
 
