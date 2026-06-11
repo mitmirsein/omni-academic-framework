@@ -33,6 +33,13 @@ class ReviewReport(BaseModel):
     editor_summary: str = Field(description="Synthesized feedback and final verdict from the Editor-in-Chief")
     final_score: int = Field(description="Synthesized or average final score (0-100)")
 
+
+class EditorSynthesis(BaseModel):
+    """독립 패널 모드에서 Chief Editor 종합 호출의 단독 출력 스키마."""
+    editor_decision: Literal["Accept", "Major Revision", "Reject"]
+    editor_summary: str = Field(description="Synthesis of the independent panelist reviews")
+    final_score: int = Field(description="Final synthesized score (0-100)")
+
 class PeerReviewPanel:
     """학술 초안 피어 리뷰 패널 오케스트레이터."""
 
@@ -158,30 +165,140 @@ class PeerReviewPanel:
             f"{self.last_attempts} attempt(s): {last_error}"
         )
 
-    @staticmethod
-    def _verify_review_grounding(report: ReviewReport, draft: DraftReport) -> None:
-        # 드래프트의 전체 텍스트 수집 (어디선가 매칭되어야 함)
-        draft_corpus = [
-            draft.title.strip(),
-            draft.thesis.strip()
-        ]
-        for sec in draft.sections:
-            draft_corpus.append(sec.body.strip())
-        for claim in draft.claims:
-            draft_corpus.append(claim.source_quote.strip())
-        for tension in draft.open_tensions:
-            draft_corpus.append(tension.strip())
+    def build_review_independent(
+        self,
+        draft: DraftReport,
+        lens_name: str,
+        llm_provider,
+        max_attempts: int = 2,
+    ) -> ReviewReport:
+        """패널리스트별 독립 LLM 호출(4회) + Chief Editor 종합 호출(1회).
 
-        for rev in report.reviews:
-            for quote in rev.source_quotes:
-                if not canon_quote(quote):
-                    continue
-                # 전체 코퍼스 중 하나에 (정규화 기준) 부분문자열로 들어있는지 검증
-                if not any(quote_in(quote, corpus_text) for corpus_text in draft_corpus):
-                    raise ValueError(
-                        f"Panelist '{rev.panelist}' referenced a source quote that is absent "
-                        f"verbatim in the draft: \"{quote}\""
+        single-shot 모드는 한 컨텍스트가 모든 페르소나를 쓰므로 관점 간
+        상관이 높다 — 이 모드는 각 패널리스트가 타 패널의 지침/리뷰를 보지
+        못하게 격리해 앵커링을 차단한다(비용 약 5배, opt-in).
+
+        grounding 검증·재시도는 패널리스트 단위로 격리되며, 한 패널리스트가
+        재시도 후에도 실패하면 ValueError로 hard fail한다(현행 semantics 유지).
+        `last_attempts`는 이 리뷰에서 수행된 총 LLM 호출 수를 기록한다.
+        """
+        panel_cfg = self._load_panel_config()
+        draft_text = self._render_draft_for_review(draft)
+
+        from omni_academic.config.lens import LensNotFoundError, load_lens
+        try:
+            lens_cfg = load_lens(lens_name, self.lens_dir)
+        except LensNotFoundError:
+            lens_cfg = {}
+
+        self.last_attempts = 0
+        reviews: List[PanelistReview] = []
+        for info in self._panelist_items(panel_cfg):
+            name = str(info.get("name") or info.get("id"))
+            base_prompt = (
+                "You are ONE peer reviewer on an academic panel. You do NOT see "
+                "the other panelists' guidelines or reviews — evaluate strictly "
+                "from your own perspective.\n"
+                f"Panelist Name: {name}\n"
+                f"Role: {info.get('role')}\n"
+                f"Focus: {info.get('focus')}\n"
+                f"Instructions:\n{info.get('prompt')}\n\n"
+                f"## Target Domain Lens: {lens_cfg.get('name', lens_name)}\n"
+                f"Lens Focus Areas: {lens_cfg.get('focus_areas', [])}\n\n"
+                "## Rules:\n"
+                f"- The panelist field MUST be exactly: {name}\n"
+                "- Every source_quote MUST be an exact verbatim substring of the "
+                "draft content (title, thesis, section bodies, claims, or open "
+                "tensions). Do not synthesize or edit quotes.\n"
+                "- Score 0-100 honestly.\n\n"
+                f"## Draft Report for Review:\n{draft_text}"
+            )
+            prompt = base_prompt
+            review = None
+            for attempt in range(1, max(1, max_attempts) + 1):
+                self.last_attempts += 1
+                review = llm_provider.generate_structured_output(prompt, PanelistReview)
+                # 패널리스트 정체성은 오케스트레이터가 권위를 갖는다 —
+                # 모델이 다른 이름을 주장해도 이 호출은 name의 평가다.
+                review.panelist = name
+                try:
+                    self._verify_panelist_grounding(review, draft)
+                    break
+                except ValueError as e:
+                    if attempt >= max_attempts:
+                        raise ValueError(
+                            "Independent review grounding failed for panelist "
+                            f"'{name}' after {attempt} attempt(s): {e}"
+                        )
+                    self.console.print(
+                        f"[yellow]⚠️ {name} grounding 실패 (시도 {attempt}/"
+                        f"{max_attempts}) → 교정 재시도: {e}[/yellow]"
                     )
+                    prompt = (
+                        f"{base_prompt}\n\n"
+                        "## CORRECTION REQUIRED (previous attempt failed quote grounding)\n"
+                        f"{e}\n"
+                        "Re-emit your review. Every source_quote must be present "
+                        "verbatim in the draft text. Do not invent quotes."
+                    )
+            reviews.append(review)
+
+        chief_editor = panel_cfg.get("chief_editor") or {}
+        panel_digest = "\n\n".join(
+            f"### {r.panelist} (score: {r.score}/100)\n{r.feedback}\n"
+            + "\n".join(f'> "{q}"' for q in r.source_quotes)
+            for r in reviews
+        )
+        editor_prompt = (
+            "You are the Editor-in-Chief synthesizing INDEPENDENT panelist "
+            "reviews (the panelists did not see each other).\n"
+            f"Role: {chief_editor.get('role', 'Synthesis and publication decision')}\n"
+            f"Instructions:\n{chief_editor.get('prompt', '')}\n"
+            f"Decision Rubric: {chief_editor.get('decision_rubric', {})}\n"
+            f"Score Rubric: {chief_editor.get('score_rubric', {})}\n\n"
+            f"## Independent Panelist Reviews:\n{panel_digest}\n\n"
+            f"## Draft Under Review:\n{draft_text}"
+        )
+        self.last_attempts += 1
+        synthesis = llm_provider.generate_structured_output(editor_prompt, EditorSynthesis)
+
+        report = ReviewReport(
+            reviews=reviews,
+            editor_decision=synthesis.editor_decision,
+            editor_summary=synthesis.editor_summary,
+            final_score=synthesis.final_score,
+        )
+        # 조립 후 전체 결정론 재검증(저렴) — 패널 단위 검증의 회귀 방지선.
+        self._verify_review_grounding(report, draft)
+        return report
+
+    @staticmethod
+    def _draft_corpus(draft: DraftReport) -> list[str]:
+        corpus = [draft.title.strip(), draft.thesis.strip()]
+        corpus.extend(sec.body.strip() for sec in draft.sections)
+        corpus.extend(claim.source_quote.strip() for claim in draft.claims)
+        corpus.extend(tension.strip() for tension in draft.open_tensions)
+        return corpus
+
+    @classmethod
+    def _verify_panelist_grounding(
+        cls, review: PanelistReview, draft: DraftReport
+    ) -> None:
+        draft_corpus = cls._draft_corpus(draft)
+        for quote in review.source_quotes:
+            if not canon_quote(quote):
+                continue
+            # 전체 코퍼스 중 하나에 (정규화 기준) 부분문자열로 들어있는지 검증
+            if not any(quote_in(quote, corpus_text) for corpus_text in draft_corpus):
+                raise ValueError(
+                    f"Panelist '{review.panelist}' referenced a source quote that is absent "
+                    f"verbatim in the draft: \"{quote}\""
+                )
+
+    @classmethod
+    def _verify_review_grounding(cls, report: ReviewReport, draft: DraftReport) -> None:
+        for rev in report.reviews:
+            cls._verify_panelist_grounding(rev, draft)
 
     @staticmethod
     def render_review(report: ReviewReport) -> str:

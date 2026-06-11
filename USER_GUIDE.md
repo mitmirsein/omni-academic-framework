@@ -159,6 +159,8 @@ Review 대상은 `draft.json`을 포함한 run 디렉터리 또는 `draft.json` 
 
 각 review의 `source_quotes`는 draft에 verbatim으로 존재해야 합니다. 마지막 재시도까지 grounding이 실패하면 `failure.json`을 쓰고 status를 `blocked_by_review_grounding`으로 남기며 `review.json`/`review.md`는 만들지 않습니다.
 
+`--independent-panel`을 붙이면 패널리스트별 독립 호출(4회) + Chief Editor 종합(1회)로 평가합니다. 각 패널은 타 패널의 지침/리뷰를 보지 못해 관점이 격리되며, 비용은 약 5배입니다. manifest에 `review_mode`가 기록됩니다.
+
 리뷰 입력이 저장된 run을 가리키면 그 run의 manifest에서 `draft_passed=true`를 확인합니다(출처 체인). draft 감사에 반려된 run을 넘기면 `blocked_by_source_audit`로 차단되고, manifest 없는 단독 `draft.json` 입력은 `source_provenance=unverified`로 기록됩니다.
 
 ## 4. Run 다루기

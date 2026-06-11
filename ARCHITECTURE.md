@@ -200,6 +200,11 @@ File: `omni_academic/analyze/peer_review.py`
 
 Peer-review reports include panelist `source_quotes`. Each quote must appear verbatim in the draft text. If the final retry still fails grounding, the router writes `failure.json` and does not create `review.json` or `review.md`.
 
+With `--independent-panel`, each panelist is evaluated in an isolated LLM call (no access to
+other panelists' guidelines or reviews) and a separate Chief Editor call synthesizes the verdict
+(~5x cost, opt-in; `review_mode` is recorded in the manifest). Grounding retries are isolated per
+panelist.
+
 The review module also enforces source provenance (chain of custody): when the review input
 resolves to a saved run, the source run's `manifest.json` must record `draft_passed=true`,
 otherwise the review is blocked with `blocked_by_source_audit`. Standalone `draft.json` file

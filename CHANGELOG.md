@@ -8,6 +8,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Added
 
+- Added `--independent-panel` review mode: four isolated panelist calls plus a Chief Editor synthesis call (anchoring between personas is structurally blocked; grounding retries are isolated per panelist; ~5x cost, opt-in; `review_mode` recorded in the manifest).
 - Added `pytest-cov` to the dev extras; CI now prints a coverage report (visibility only, no fail threshold yet — baseline 66%).
 - Added `OMNI_LLM_MODEL` to override the live LLM model without code changes; `--status` now shows `OMNI_LLM_MODEL` and `OMNI_LLM_MAX_TOKENS` diagnostics and `.env.example` documents both.
 - Added `LensConfig` schema validation: lens YAML files that violate the known field contract (e.g., `focus_areas` not a list) now fail loudly with `LensConfigError` instead of silently injecting empty directives; unknown top-level keys are surfaced as warnings and `--list-lenses` gained a Validation column.

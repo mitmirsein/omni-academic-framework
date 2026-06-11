@@ -139,6 +139,31 @@ class MockProvider(BaseLLMProvider):
                 ],
             })
 
+        if schema.__name__ == "PanelistReview":
+            # 독립 패널 모드: 프롬프트의 패널리스트 정체성과 draft 제목을 에코.
+            name_match = re.search(r"^Panelist Name:\s*(.+)$", prompt, re.M)
+            name = name_match.group(1).strip() if name_match else "Ella"
+            quote = ""
+            for line in prompt.splitlines():
+                if line.startswith("Paper Title:"):
+                    quote = line.replace("Paper Title:", "").strip()
+                    break
+            return schema.model_validate({
+                "panelist": name,
+                "score": 88,
+                "feedback": f"Mock independent review from {name}.",
+                "source_quotes": [quote[:80]] if quote else [],
+            })
+
+        if schema.__name__ == "EditorSynthesis":
+            return schema.model_validate({
+                "editor_decision": "Accept",
+                "editor_summary": (
+                    "Mock EIC synthesis of independent panel reviews."
+                ),
+                "final_score": 87,
+            })
+
         if schema.__name__ == "ReviewReport":
             import re
             quotes = []

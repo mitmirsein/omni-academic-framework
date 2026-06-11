@@ -57,6 +57,7 @@ Common optional fields:
 | `review_grounding_passed` | boolean | peer-review grounding validator ran |
 | `review_passed` | boolean | review decision was `Accept` or `Major Revision` |
 | `review_score` | integer | review final score |
+| `review_mode` | string | review module: `single_shot` or `independent` (`--independent-panel`) |
 | `source_provenance` | string | review module: `manifest` (source run manifest verified) or `unverified` (standalone draft.json input) |
 | `source_run_id` | string | review module: `run_id` of the source draft run |
 | `source_draft_passed` | boolean or null | review module: `draft_passed` recorded in the source run manifest |

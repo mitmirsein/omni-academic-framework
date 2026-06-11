@@ -39,6 +39,7 @@ class RouterRequest(BaseModel):
     kci_harvest: str = ""
     llm_analysis: bool = False
     llm_critic: bool = False
+    independent_panel: bool = False
 
 
 async def _probe_url(url: str) -> dict:
@@ -367,7 +368,10 @@ class OmniSupervisorRouter:
             elif request.target_module == ModuleType.DRAFT:
                 self._run_draft(store, _resolve_document(request.query), request.lens)
             elif request.target_module == ModuleType.REVIEW:
-                self._run_review(store, request.query, request.lens)
+                self._run_review(
+                    store, request.query, request.lens,
+                    independent=request.independent_panel,
+                )
             if store._meta.get("status") == run_status.RUNNING:
                 store.note("status", run_status.COMPLETED)
         except Exception as e:
@@ -749,12 +753,17 @@ class OmniSupervisorRouter:
                 f"(Score: {draft_audit.score}/100)[/bold red]"
             )
 
-    def _run_review(self, store: RunStore, ref: str, lens: str):
+    def _run_review(
+        self, store: RunStore, ref: str, lens: str, *, independent: bool = False,
+    ):
         from omni_academic.analyze.peer_review import PeerReviewPanel
         from omni_academic.draft.scribe import DraftReport
 
+        mode = "independent" if independent else "single_shot"
+        store.note("review_mode", mode)
         self.console.print(
-            f"\n[bold magenta]👥 [Peer Review Panel] (렌즈: {lens})[/bold magenta]"
+            f"\n[bold magenta]👥 [Peer Review Panel] (렌즈: {lens}, "
+            f"mode: {mode})[/bold magenta]"
         )
 
         try:
@@ -820,7 +829,10 @@ class OmniSupervisorRouter:
         provider = _make_provider(self.use_mock)
 
         try:
-            report = panel.build_review(draft, lens, provider)
+            if independent:
+                report = panel.build_review_independent(draft, lens, provider)
+            else:
+                report = panel.build_review(draft, lens, provider)
         except ValueError as e:
             store.note("status", run_status.BLOCKED_BY_REVIEW_GROUNDING)
             store.note("review_grounding_passed", False)
@@ -898,6 +910,11 @@ def main():
         help="--llm-analysis 결과에 LLM self-redteaming critic pass를 추가 실행",
     )
     parser.add_argument(
+        "--independent-panel", action="store_true",
+        help="review 모듈에서 패널리스트별 독립 LLM 호출(4회)+Editor 종합(1회) 모드 "
+             "(관점 격리, 비용 약 5배)",
+    )
+    parser.add_argument(
         "--status", action="store_true",
         help="현재 시스템 설정 및 API Key 등 로컬 진단/셋업 화면을 출력",
     )
@@ -959,6 +976,7 @@ def main():
         kci_harvest=args.kci_harvest,
         llm_analysis=args.llm_analysis or args.llm_critic,
         llm_critic=args.llm_critic,
+        independent_panel=args.independent_panel,
     )
 
     asyncio.run(OmniSupervisorRouter(use_mock=args.mock).route(request))

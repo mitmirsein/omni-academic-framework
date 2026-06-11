@@ -371,6 +371,135 @@ async def test_router_review_blocked_when_source_draft_failed(tmp_path):
     assert not (run_out / "review.md").exists()
 
 
+class RecordingMockProvider(MockProvider):
+    """프롬프트 격리(독립성) 검증용 — 호출된 (schema, prompt)를 기록."""
+
+    def __init__(self):
+        self.prompts = []
+
+    def generate_structured_output(self, prompt, schema):
+        self.prompts.append((schema.__name__, prompt))
+        return super().generate_structured_output(prompt, schema)
+
+
+class CorrectingIndependentProvider(MockProvider):
+    """첫 PanelistReview 호출만 환각 인용 → 패널 단위 재시도 격리 검증."""
+
+    def __init__(self):
+        self.panelist_calls = 0
+
+    def generate_structured_output(self, prompt, schema):
+        if schema.__name__ == "PanelistReview":
+            self.panelist_calls += 1
+            if self.panelist_calls == 1:
+                import re
+                name = re.search(r"^Panelist Name:\s*(.+)$", prompt, re.M).group(1).strip()
+                return schema.model_validate({
+                    "panelist": name, "score": 40,
+                    "feedback": "Hallucinated critique.",
+                    "source_quotes": ["this quote does not exist in the draft"],
+                })
+        return super().generate_structured_output(prompt, schema)
+
+
+class AlwaysBadIndependentProvider(MockProvider):
+    def generate_structured_output(self, prompt, schema):
+        if schema.__name__ == "PanelistReview":
+            import re
+            name = re.search(r"^Panelist Name:\s*(.+)$", prompt, re.M).group(1).strip()
+            return schema.model_validate({
+                "panelist": name, "score": 40,
+                "feedback": "Hallucinated critique.",
+                "source_quotes": ["this quote does not exist in the draft"],
+            })
+        return super().generate_structured_output(prompt, schema)
+
+
+def test_build_review_independent_isolates_panelists(sample_draft):
+    panel = PeerReviewPanel()
+    provider = RecordingMockProvider()
+    report = panel.build_review_independent(sample_draft, "theology", provider)
+
+    assert {r.panelist for r in report.reviews} == {
+        "Ella", "Miranda", "Methodologist", "Devil's Advocate",
+    }
+    assert report.editor_decision == "Accept"
+    # 4 패널 + Editor 종합 = 5 호출, last_attempts는 총 호출 수
+    assert len(provider.prompts) == 5
+    assert panel.last_attempts == 5
+
+    panelist_prompts = [p for s, p in provider.prompts if s == "PanelistReview"]
+    editor_prompts = [p for s, p in provider.prompts if s == "EditorSynthesis"]
+    assert len(panelist_prompts) == 4 and len(editor_prompts) == 1
+    # 격리: 각 패널 프롬프트는 자신의 이름만 포함한다(타 패널 지침 비공개)
+    all_names = {"Ella", "Miranda", "Methodologist", "Devil's Advocate"}
+    for prompt in panelist_prompts:
+        present = {n for n in all_names if n in prompt}
+        assert len(present) == 1, f"panel prompt leaked other panelists: {present}"
+    # Editor는 4인 리뷰 전부를 본다
+    assert all(n in editor_prompts[0] for n in all_names)
+
+
+def test_build_review_independent_retries_per_panelist(sample_draft):
+    panel = PeerReviewPanel()
+    provider = CorrectingIndependentProvider()
+    report = panel.build_review_independent(sample_draft, "theology", provider)
+    assert len(report.reviews) == 4
+    assert panel.last_attempts == 6  # 5 + 첫 패널 재시도 1회
+
+
+def test_build_review_independent_hard_fails_per_panelist(sample_draft):
+    panel = PeerReviewPanel()
+    with pytest.raises(ValueError, match="Independent review grounding failed for panelist 'Ella'"):
+        panel.build_review_independent(sample_draft, "theology", AlwaysBadIndependentProvider())
+
+
+@pytest.mark.anyio
+async def test_router_review_independent_mode_mock(tmp_path):
+    run_dir = tmp_path / "runs" / "indep" / "mock-run"
+    run_dir.mkdir(parents=True)
+    draft_report = DraftReport(
+        title="Independent Panel Test",
+        thesis="Mock thesis for independent review.",
+        sections=[DraftSection(
+            section_type="introduction", heading="Introduction",
+            body="Body cites [C1].", claim_ids=["C1"],
+        )],
+        claims=[DraftClaim(
+            claim_id="C1", paragraph_id="P_0001",
+            source_quote="Mock thesis for independent review.", node_id=None,
+        )],
+    )
+    (run_dir / "draft.json").write_text(draft_report.model_dump_json(), encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps({
+            "run_id": "indep/mock-run", "query": "Independent Panel Test",
+            "mock": True, "draft_passed": True,
+        }),
+        encoding="utf-8",
+    )
+
+    runs_base = tmp_path / "output-runs"
+    router = OmniSupervisorRouter(use_mock=True, runs_base=str(runs_base))
+    await router.route(RouterRequest(
+        query=str(run_dir), lens="general",
+        target_module=ModuleType.REVIEW, use_mock=True,
+        independent_panel=True,
+    ))
+
+    manifests = list(runs_base.rglob("manifest.json"))
+    assert len(manifests) == 1
+    run_out = manifests[0].parent
+    manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert manifest["status"] == "completed"
+    assert manifest["review_mode"] == "independent"
+    assert manifest["review_passed"] is True
+    assert manifest["llm_usage"]["review_attempts"] == 5
+    assert len(manifest["llm_usage"]["review_calls"]) == 5
+    review = json.loads((run_out / "review.json").read_text(encoding="utf-8"))
+    assert len(review["reviews"]) == 4
+
+
 @pytest.mark.anyio
 async def test_router_review_direct_file_is_marked_unverified(tmp_path, sample_draft):
     """manifest 없는 단독 draft.json 입력은 출처 미검증으로 명시 기록된다."""
