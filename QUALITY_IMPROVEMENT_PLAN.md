@@ -361,6 +361,25 @@ uv run python -m pytest tests/test_peer_review.py tests/test_draft.py -q
 - mock CLI 스모크: draft → review → `--verify-run` 전 구간 통과, review run manifest에 `source_provenance=manifest`/`source_draft_passed=true` 기록 확인, draft run에 `coverage.json` + coverage manifest 필드 기록 확인
 - `blocked_by_draft_audit` run 리뷰 차단은 `test_router_review_blocked_when_source_draft_failed`로 고정
 
+### Phase 2 — 완료 (2026-06-11)
+
+| Finding | 커밋 | 비고 |
+|---|---|---|
+| F5 ontology 재시도 | `ca2fd39` | `OntologyExtractor`에 grounding 검증 + CORRECTION 재시도(기본 2회), `llm_usage.ontology_attempts` 기록, draft 경로에서 usage 병합(덮어쓰기 버그 함께 수정) |
+| F6 문단 분할 강화 | `fffe61f` | 350토큰 초과 블록을 문장 경계에서 하위 분할(연번 `P_\d+` 유지, 토큰 시퀀스 무손실), AuditGate `COARSE_PARAGRAPH` 경고. 콘텐츠 해시 사이드카는 paragraphs.json 계약 보존을 위해 보류 |
+| F7 Forensic 정밀화 | `c2afe41` | User-Agent 추가, 판정 매트릭스: 404/410만 `GHOST_DOI`(error), 403/429/5xx/네트워크 오류는 `UNVERIFIABLE_DOI`/`UNVERIFIABLE_URL`(warning, 비차단) |
+| F8 usage 누적 | `2a004b9` | provider 인스턴스별 `usage_log`, manifest에 `<step>_calls` + `<step>_total_input/output_tokens` (기존 키 호환 유지) |
+| F9 렌즈 스키마 검증 | `a6db7be` | pydantic `LensConfig`(extra 허용), 타입 위반 시 `LensConfigError`, 미지 키 `lens_warnings()`, `--list-lenses` Validation 컬럼 |
+| F10 모델 env | `66e1488` | `OMNI_LLM_MODEL` 주입, `--status`에 `OMNI_LLM_MODEL`/`OMNI_LLM_MAX_TOKENS` 진단 행, `.env.example`/문서 갱신 |
+
+완료 기준 검증 (2026-06-11 실측):
+
+- `uv run ruff check`: 통과
+- `uv run python -m pytest -q`: `198 passed, 2 skipped` (Phase 1 종료 시점 165 + 신규 33)
+- 번들 렌즈 7종 전부 `LensConfig` 계약 통과(`test_all_bundled_lenses_satisfy_contract`)
+- mock CLI 스모크: draft → review → `--verify-run` 전 구간 통과
+- `--status`/`--list-lenses` 신규 진단 표기 실측 확인
+
 ## 8. 후속 에이전트 주의사항
 
 - 각 Finding은 독립 커밋으로 구현하고, 커밋마다 위 검증 명령을 통과시킨다.
