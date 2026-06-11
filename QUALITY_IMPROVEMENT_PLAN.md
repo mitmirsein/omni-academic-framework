@@ -380,6 +380,22 @@ uv run python -m pytest tests/test_peer_review.py tests/test_draft.py -q
 - mock CLI 스모크: draft → review → `--verify-run` 전 구간 통과
 - `--status`/`--list-lenses` 신규 진단 표기 실측 확인
 
+### Phase 3 — 완료 (2026-06-11)
+
+| Finding | 커밋 | 비고 |
+|---|---|---|
+| F14 커버리지 가시화 | `c7ec260` | `pytest-cov` dev extra + CI 리포트(임계값 없음). 베이스라인 66% — 사각지대: `query_db` 0%(subprocess 테스트), `status.py` 27%, recon engine 38%, router 63% |
+| F11 독립 패널 리뷰 | `3ac1449` | `--independent-panel`: 패널리스트별 격리 호출 4회 + Chief Editor 종합 1회, 패널 단위 grounding 재시도, `review_mode` manifest 기록, MockProvider 단일 스키마 지원. 기본 경로 불변 |
+| F12 동적 용어집 | `b0b8471` | `--glossary` (헌법 §4 MVP): 문서 앞부분 스캔 → source-bound 용어집 추출 → 결정론 감사 → 통과 시에만 프롬프트 주입(fail-closed). 외부 사전 미사용. analyze/draft usage 병합 버그 수정 포함 |
+| F13 recon 분리 | `2764d5d` | 9개 클라이언트를 `recon/clients/`로 기계적 이동(엔진 1,190줄 → 160줄), `CLIENT_FACTORY` 레지스트리, engine.py 재수출로 기존 경로/테스트 무수정 유지 |
+
+완료 기준 검증 (2026-06-11 실측):
+
+- `uv run ruff check`: 통과
+- `uv run python -m pytest -q`: `207 passed, 2 skipped` (Phase 2 종료 시점 198 + 신규 9), 커버리지 68%
+- mock CLI 스모크: `draft --glossary`(용어집 2건 장착, 감사 통과) → `review --independent-panel`(5 호출, Accept) → `--verify-run` 무결성 OK
+- F13 리팩터는 기존 테스트 무수정 통과로 동작 불변 확인
+
 ## 8. 후속 에이전트 주의사항
 
 - 각 Finding은 독립 커밋으로 구현하고, 커밋마다 위 검증 명령을 통과시킨다.
