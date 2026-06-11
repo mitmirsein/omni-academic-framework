@@ -176,3 +176,94 @@ def test_query_db_rejects_unknown_status_value(tmp_path):
 
     assert proc.returncode == 2
     assert "invalid choice" in proc.stderr
+
+
+# --- 인프로세스 테스트 (커버리지 측정 가능 경로; subprocess 테스트는 통합 검증용) ---
+
+from omni_academic.store import query_db  # noqa: E402
+
+
+def _json_rows(capsys):
+    return json.loads(capsys.readouterr().out)
+
+
+def test_main_json_orders_newest_first(tmp_path, capsys):
+    _make_db(tmp_path)
+    rc = query_db.main(["--db", str(tmp_path / "runs" / "index.db"), "--json"])
+    assert rc == 0
+    rows = _json_rows(capsys)
+    assert [r["run_id"] for r in rows][:2] == ["new", "old"]
+
+
+def test_main_lens_term_filters_by_lens_registry(tmp_path, capsys, monkeypatch):
+    _make_db(tmp_path)
+    (tmp_path / "lenses").mkdir()
+    (tmp_path / "lenses" / "medical.yaml").write_text("name: medical\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    rc = query_db.main(["medical", "--json"])
+    assert rc == 0
+    assert [r["run_id"] for r in _json_rows(capsys)] == ["med"]
+
+
+def test_main_keyword_term_falls_back_to_query_like(tmp_path, capsys, monkeypatch):
+    _make_db(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    rc = query_db.main(["Mock failed", "--json"])
+    assert rc == 0
+    assert [r["run_id"] for r in _json_rows(capsys)] == ["mock-fail"]
+
+
+def test_main_latest_and_mock_filters(tmp_path, capsys):
+    _make_db(tmp_path)
+    db = str(tmp_path / "runs" / "index.db")
+    assert query_db.main(["--db", db, "--latest", "--json"]) == 0
+    assert [r["run_id"] for r in _json_rows(capsys)] == ["new"]
+    assert query_db.main(["--db", db, "--mock", "--json"]) == 0
+    assert [r["run_id"] for r in _json_rows(capsys)] == ["mock-fail"]
+
+
+def test_main_conflicting_audit_flags_exit_2(tmp_path, capsys):
+    _make_db(tmp_path)
+    rc = query_db.main([
+        "--db", str(tmp_path / "runs" / "index.db"), "--passed", "--failed",
+    ])
+    assert rc == 2
+
+
+def test_main_missing_db_exits_1(tmp_path):
+    assert query_db.main(["--db", str(tmp_path / "nope.db")]) == 1
+
+
+def test_main_zero_limit_exits_2(tmp_path):
+    _make_db(tmp_path)
+    rc = query_db.main(["--db", str(tmp_path / "runs" / "index.db"), "--limit", "0"])
+    assert rc == 2
+
+
+def test_main_status_on_legacy_db_exits_2(tmp_path, capsys):
+    # status 컬럼이 없는 레거시 DB → 명확한 인자 오류로 안내
+    _make_db(tmp_path)
+    rc = query_db.main([
+        "--db", str(tmp_path / "runs" / "index.db"),
+        "--status", "completed",
+    ])
+    assert rc == 2
+
+
+def test_main_direct_sql_ignores_filters_with_warning(tmp_path, capsys):
+    _make_db(tmp_path)
+    rc = query_db.main([
+        "--db", str(tmp_path / "runs" / "index.db"),
+        "SELECT run_id FROM runs WHERE mock = 1",
+        "--latest", "--json",
+    ])
+    assert rc == 0
+    assert [r["run_id"] for r in _json_rows(capsys)] == ["mock-fail"]
+
+
+def test_main_table_output_truncates_and_counts(tmp_path, capsys):
+    _make_db(tmp_path)
+    rc = query_db.main(["--db", str(tmp_path / "runs" / "index.db")])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "총 4건의 결과가 조회되었습니다." in out
