@@ -17,6 +17,7 @@ This project uses pragmatic version notes rather than a strict release calendar.
 
 ### Changed
 
+- `AnthropicProvider` now hard-fails when a response is truncated at the `max_tokens` budget (`stop_reason=max_tokens`), instead of silently passing a partially lost structured output downstream; the error points to `OMNI_LLM_MAX_TOKENS`.
 - Unified quote matching across `AuditGate`, `DraftComplianceAuditor`, `LensComplianceAuditor`, `ScribeAgent`, `LensAnalyzer`, and `PeerReviewPanel`: non-destructive variants (NBSP, curly quotes, line-break collapse) now match everywhere, while case differences are no longer forgiven by the ontology gate.
 - Clarified provider boundaries in setup/status output, `.env.example`, and provider placeholder errors.
 - Centralized the current supported/reserved LLM provider contract in code-level constants.

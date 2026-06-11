@@ -347,17 +347,27 @@ class AnthropicProvider(BaseLLMProvider):
 
         # 운용 감사: 실제 model + 토큰 usage 기록(매 호출 갱신).
         usage = getattr(response, "usage", None)
+        stop_reason = getattr(response, "stop_reason", None)
         self.last_usage = {
             "model": getattr(response, "model", self.model),
             "mock": False,
             "schema": schema.__name__,
             "max_tokens_budget": self.max_tokens,
-            "stop_reason": getattr(response, "stop_reason", None),
+            "stop_reason": stop_reason,
             "input_tokens": getattr(usage, "input_tokens", None),
             "output_tokens": getattr(usage, "output_tokens", None),
             "cache_read_input_tokens": getattr(usage, "cache_read_input_tokens", None),
             "cache_creation_input_tokens": getattr(usage, "cache_creation_input_tokens", None),
         }
+
+        if stop_reason == "max_tokens":
+            # 잘린 구조화 출력은 스키마 검증을 '우연히' 통과한 채 노드/claim을
+            # 조용히 잃을 수 있다(무손실 위반) → 침묵 진행 대신 hard fail.
+            raise RuntimeError(
+                f"Anthropic 응답이 max_tokens({self.max_tokens}) 한도에서 잘렸습니다 "
+                f"(schema={schema.__name__}). OMNI_LLM_MAX_TOKENS 환경변수를 늘리거나 "
+                "입력 문서를 줄인 뒤 다시 실행하세요."
+            )
 
         tool_block = next(
             (b for b in response.content if b.type == "tool_use"), None
