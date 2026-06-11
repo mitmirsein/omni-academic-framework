@@ -95,6 +95,7 @@ def _failure_diagnostic(status: str, meta: dict) -> list[str]:
         "blocked_by_audit": "Ontology audit failed. Downstream artifacts that depend on the ontology were blocked.",
         "blocked_by_draft_audit": "Draft compliance audit failed. The draft artifacts were written for diagnosis, but the run did not pass the draft gate.",
         "blocked_by_review_grounding": "Peer review quote grounding failed. The review was not promoted to review.json/review.md.",
+        "blocked_by_source_audit": "The review source draft run did not pass its draft compliance audit. The review was blocked to preserve the chain of custody.",
         "review_rejected": "Peer review completed, but the Editor-in-Chief decision was Reject.",
     }
     message = diagnostics.get(str(status or ""))

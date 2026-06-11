@@ -57,6 +57,10 @@ Common optional fields:
 | `review_grounding_passed` | boolean | peer-review grounding validator ran |
 | `review_passed` | boolean | review decision was `Accept` or `Major Revision` |
 | `review_score` | integer | review final score |
+| `source_provenance` | string | review module: `manifest` (source run manifest verified) or `unverified` (standalone draft.json input) |
+| `source_run_id` | string | review module: `run_id` of the source draft run |
+| `source_draft_passed` | boolean or null | review module: `draft_passed` recorded in the source run manifest |
+| `source_mock` | boolean | review module: source draft run was generated with `--mock` |
 | `llm_usage` | object | provider/model/usage metadata for LLM-backed steps |
 | `error_message` | string | exception or blocked-path diagnostic |
 | `has_failure_artifact` | boolean | `failure.json` was written |
@@ -98,6 +102,7 @@ Canonical values are defined in `omni_academic/supervisor/run_status.py`.
 | `blocked_by_audit` | Ontology audit failed |
 | `blocked_by_draft_audit` | Draft compliance audit failed |
 | `blocked_by_review_grounding` | Peer-review quote grounding failed |
+| `blocked_by_source_audit` | Review source draft run did not pass its draft compliance audit |
 | `review_rejected` | Peer review ran but Chief Editor rejected |
 | `unknown` | Legacy/default value when no status was recorded |
 

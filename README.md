@@ -95,6 +95,7 @@ uv run omni --verify-run examples-sample-md/latest
 - `blocked_by_audit`
 - `blocked_by_draft_audit`
 - `blocked_by_review_grounding`
+- `blocked_by_source_audit`
 - `review_rejected`
 - `analysis_failed`
 - `scraping_failed`

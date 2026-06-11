@@ -157,6 +157,8 @@ Review 대상은 `draft.json`을 포함한 run 디렉터리 또는 `draft.json` 
 
 각 review의 `source_quotes`는 draft에 verbatim으로 존재해야 합니다. 마지막 재시도까지 grounding이 실패하면 `failure.json`을 쓰고 status를 `blocked_by_review_grounding`으로 남기며 `review.json`/`review.md`는 만들지 않습니다.
 
+리뷰 입력이 저장된 run을 가리키면 그 run의 manifest에서 `draft_passed=true`를 확인합니다(출처 체인). draft 감사에 반려된 run을 넘기면 `blocked_by_source_audit`로 차단되고, manifest 없는 단독 `draft.json` 입력은 `source_provenance=unverified`로 기록됩니다.
+
 ## 4. Run 다루기
 
 Run은 아래 형식으로 저장됩니다.
@@ -205,6 +207,7 @@ uv run omni --verify-run runs/examples-sample-md/latest
 | `blocked_by_audit` | ontology audit 실패 |
 | `blocked_by_draft_audit` | draft compliance 실패 |
 | `blocked_by_review_grounding` | review quote grounding 실패 |
+| `blocked_by_source_audit` | 리뷰 대상 draft run이 draft 감사를 통과하지 못함 |
 | `review_rejected` | review는 완료됐지만 Chief Editor가 reject |
 | `analysis_failed` | lens/provider/input 문제로 분석 실패 |
 | `scraping_failed` | 원문 수집이 markdown을 만들지 못함 |

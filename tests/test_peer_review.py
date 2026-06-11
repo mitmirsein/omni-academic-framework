@@ -214,7 +214,9 @@ async def test_router_review_mode_mock(tmp_path):
         "created_at": "2026-05-24T12:00:00Z",
         "query": "CS Scale Test",
         "lens": "cs",
-        "mock": True
+        "mock": True,
+        "status": "completed",
+        "draft_passed": True,
     }
     (run_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
 
@@ -245,6 +247,11 @@ async def test_router_review_mode_mock(tmp_path):
     assert out_manifest["llm_usage"]["review_attempts"] == 1
     assert out_manifest["artifact_manifest"]["review.json"]["exists"] is True
     assert "### Peer Review Panel" in (run_out / "report.md").read_text(encoding="utf-8")
+    # 출처 체인(Chain of Custody) 기록
+    assert out_manifest["source_provenance"] == "manifest"
+    assert out_manifest["source_run_id"] == "test-query/mock-run"
+    assert out_manifest["source_draft_passed"] is True
+    assert out_manifest["source_mock"] is True
 
 
 @pytest.mark.anyio
@@ -273,7 +280,12 @@ async def test_router_review_grounding_failure_blocks_artifact(tmp_path, monkeyp
     )
     (run_dir / "draft.json").write_text(draft_report.model_dump_json(), encoding="utf-8")
     (run_dir / "manifest.json").write_text(
-        json.dumps({"run_id": "test-query/mock-run", "query": "CS Scale Test"}),
+        json.dumps({
+            "run_id": "test-query/mock-run",
+            "query": "CS Scale Test",
+            "mock": True,
+            "draft_passed": True,
+        }),
         encoding="utf-8",
     )
     monkeypatch.setattr(
@@ -302,3 +314,81 @@ async def test_router_review_grounding_failure_blocks_artifact(tmp_path, monkeyp
     assert (run_out / "failure.json").is_file()
     assert not (run_out / "review.json").exists()
     assert not (run_out / "review.md").exists()
+
+
+@pytest.mark.anyio
+async def test_router_review_blocked_when_source_draft_failed(tmp_path):
+    """감사 반려된 draft run은 리뷰 입력으로 쓸 수 없다 (출처 체인, F1)."""
+    run_dir = tmp_path / "runs" / "bad-draft" / "mock-run"
+    run_dir.mkdir(parents=True)
+    draft_report = DraftReport(
+        title="Blocked Draft",
+        thesis="This draft failed its compliance audit.",
+        sections=[DraftSection(
+            section_type="introduction",
+            heading="Introduction",
+            body="Body with [C1].",
+            claim_ids=["C1"],
+        )],
+        claims=[DraftClaim(
+            claim_id="C1", paragraph_id="P_0001",
+            source_quote="hallucinated quote", node_id=None,
+        )],
+    )
+    (run_dir / "draft.json").write_text(draft_report.model_dump_json(), encoding="utf-8")
+    (run_dir / "manifest.json").write_text(
+        json.dumps({
+            "run_id": "bad-draft/mock-run",
+            "query": "Blocked Draft",
+            "mock": True,
+            "status": "blocked_by_draft_audit",
+            "draft_passed": False,
+        }),
+        encoding="utf-8",
+    )
+
+    runs_base = tmp_path / "output-runs"
+    router = OmniSupervisorRouter(use_mock=True, runs_base=str(runs_base))
+    await router.route(RouterRequest(
+        query=str(run_dir),
+        lens="general",
+        target_module=ModuleType.REVIEW,
+        use_mock=True,
+    ))
+
+    manifests = list(runs_base.rglob("manifest.json"))
+    assert len(manifests) == 1
+    run_out = manifests[0].parent
+    out_manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert out_manifest["status"] == "blocked_by_source_audit"
+    assert out_manifest["review_passed"] is False
+    assert out_manifest["source_run_id"] == "bad-draft/mock-run"
+    assert out_manifest["source_draft_passed"] is False
+    failure = json.loads((run_out / "failure.json").read_text(encoding="utf-8"))
+    assert failure["stage"] == "source_provenance"
+    assert failure["source_status"] == "blocked_by_draft_audit"
+    assert not (run_out / "review.json").exists()
+    assert not (run_out / "review.md").exists()
+
+
+@pytest.mark.anyio
+async def test_router_review_direct_file_is_marked_unverified(tmp_path, sample_draft):
+    """manifest 없는 단독 draft.json 입력은 출처 미검증으로 명시 기록된다."""
+    draft_path = tmp_path / "standalone_draft.json"
+    draft_path.write_text(sample_draft.model_dump_json(), encoding="utf-8")
+
+    runs_base = tmp_path / "output-runs"
+    router = OmniSupervisorRouter(use_mock=True, runs_base=str(runs_base))
+    await router.route(RouterRequest(
+        query=str(draft_path),
+        lens="general",
+        target_module=ModuleType.REVIEW,
+        use_mock=True,
+    ))
+
+    manifests = list(runs_base.rglob("manifest.json"))
+    assert len(manifests) == 1
+    out_manifest = json.loads(manifests[0].read_text(encoding="utf-8"))
+    assert out_manifest["status"] == "completed"
+    assert out_manifest["source_provenance"] == "unverified"
+    assert "source_draft_passed" not in out_manifest

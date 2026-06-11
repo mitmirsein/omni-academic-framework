@@ -182,6 +182,11 @@ File: `omni_academic/analyze/peer_review.py`
 
 Peer-review reports include panelist `source_quotes`. Each quote must appear verbatim in the draft text. If the final retry still fails grounding, the router writes `failure.json` and does not create `review.json` or `review.md`.
 
+The review module also enforces source provenance (chain of custody): when the review input
+resolves to a saved run, the source run's `manifest.json` must record `draft_passed=true`,
+otherwise the review is blocked with `blocked_by_source_audit`. Standalone `draft.json` file
+inputs have no manifest and are recorded as `source_provenance=unverified`.
+
 ## Status Semantics
 
 Canonical status values live in `omni_academic/supervisor/run_status.py`.
@@ -196,6 +201,7 @@ Important terminal statuses:
 | `blocked_by_audit` | Ontology audit failed |
 | `blocked_by_draft_audit` | Draft compliance failed |
 | `blocked_by_review_grounding` | Peer-review quote grounding failed |
+| `blocked_by_source_audit` | Review source draft run did not pass its draft audit |
 | `review_rejected` | Review completed, but Chief Editor rejected |
 | `no_papers_found` | Recon returned no candidates |
 | `cancelled_by_user` | User stopped at HITL selection |

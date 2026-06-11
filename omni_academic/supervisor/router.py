@@ -178,6 +178,11 @@ def _run_next_steps(status: str, manifest: dict, run_dir: Path) -> list[str]:
             "Inspect the source `draft.json` and retry `--module review` after correcting the review provider output.",
             "Do not treat this run as a valid peer review; `review.json` and `review.md` are intentionally absent.",
         ],
+        run_status.BLOCKED_BY_SOURCE_AUDIT: [
+            "Inspect `failure.json` for the source run id and its recorded status.",
+            "Fix the source draft run's `draft_audit.json` findings and rerun `--module draft` until `draft_passed` is true.",
+            "Rerun `--module review` against the passing draft run.",
+        ],
         run_status.REVIEW_REJECTED: [
             "Inspect `review.md` or `review.json` for the Chief Editor decision and panel feedback.",
             "Revise the draft source run, then rerun `--module review`.",
@@ -636,15 +641,59 @@ class OmniSupervisorRouter:
         try:
             run_dir = _resolve_run_dir(ref, base=self.runs_base)
             draft_path = run_dir / "draft.json"
+            source_manifest = json.loads(
+                (run_dir / "manifest.json").read_text(encoding="utf-8")
+            )
         except ValueError:
             p = Path(ref)
             if p.is_file():
                 draft_path = p
+                source_manifest = None
             else:
                 raise ValueError(f"리뷰 대상을 찾을 수 없습니다: {ref}")
 
         if not draft_path.is_file():
             raise FileNotFoundError(f"draft.json이 없습니다: {draft_path}")
+
+        # --- 출처 체인(Chain of Custody) 검증: 감사 반려/미검증 초안 차단 ---
+        if source_manifest is None:
+            # 단독 draft.json 파일 입력(레거시 경로)은 manifest가 없어 검증 불가.
+            store.note("source_provenance", "unverified")
+            self.console.print(
+                "[yellow]⚠️ 리뷰 대상에 run manifest가 없어 출처 검증 없이 진행합니다 "
+                "(source_provenance=unverified).[/yellow]"
+            )
+        else:
+            store.note("source_provenance", "manifest")
+            store.note("source_run_id", source_manifest.get("run_id"))
+            source_draft_passed = source_manifest.get("draft_passed")
+            source_mock = bool(source_manifest.get("mock"))
+            store.note("source_draft_passed", source_draft_passed)
+            store.note("source_mock", source_mock)
+            if source_draft_passed is not True:
+                store.note("status", run_status.BLOCKED_BY_SOURCE_AUDIT)
+                store.note("review_passed", False)
+                store.write_failure_artifact({
+                    "stage": "source_provenance",
+                    "source_run_id": source_manifest.get("run_id"),
+                    "source_status": source_manifest.get("status"),
+                    "source_draft_passed": source_draft_passed,
+                    "error_message": (
+                        "source draft run did not pass DraftComplianceAuditor; "
+                        "review blocked to preserve the chain of custody"
+                    ),
+                })
+                self.console.print(
+                    "   => [bold red]Peer Review 차단: 원본 draft run이 draft 감사를 "
+                    f"통과하지 않았습니다 (source status: "
+                    f"{source_manifest.get('status')}).[/bold red]"
+                )
+                return
+            if source_mock and not self.use_mock:
+                self.console.print(
+                    "[yellow]⚠️ mock으로 생성된 draft를 live 리뷰에 입력했습니다 "
+                    "(manifest에 source_mock=true 기록).[/yellow]"
+                )
 
         draft = DraftReport.model_validate_json(draft_path.read_text(encoding="utf-8"))
 

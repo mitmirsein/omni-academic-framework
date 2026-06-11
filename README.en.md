@@ -95,6 +95,7 @@ Runs are not marked `completed` unless the required gate for that path passes. I
 - `blocked_by_audit`
 - `blocked_by_draft_audit`
 - `blocked_by_review_grounding`
+- `blocked_by_source_audit`
 - `review_rejected`
 - `analysis_failed`
 - `scraping_failed`
