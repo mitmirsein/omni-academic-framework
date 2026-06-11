@@ -1,8 +1,9 @@
 import os
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import yaml
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 DEFAULT_LENS = "general"
 
@@ -12,6 +13,38 @@ _PACKAGED_LENSES = Path(__file__).resolve().parent.parent / "lenses"
 
 class LensNotFoundError(FileNotFoundError):
     pass
+
+
+class LensConfigError(ValueError):
+    """렌즈 YAML이 알려진 필드의 타입 계약을 위반함 — 조용한 무시 대신 명시 실패."""
+
+
+class LensConfig(BaseModel):
+    """렌즈 어댑터의 알려진 필드 계약 (헌법 §2 — 도메인 규칙 주입 통로).
+
+    어댑터 주입이 핵심 메커니즘이므로 주입 실패(오타 필드, 타입 위반)는
+    조용히 빈 지시로 동작하지 않고 시끄럽게 알린다. 미지 키는 허용하되
+    `lens_warnings()`로 표면화한다(전방 호환).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    name: Optional[str] = None
+    description: Optional[str] = None
+    focus_areas: List[str] = Field(default_factory=list)
+    analysis_prompt: str = ""
+    ontology_directive: str = ""
+    recon_clients: List[str] = Field(default_factory=list)
+    coverage_thresholds: Dict[str, Any] = Field(default_factory=dict)
+
+
+def lens_warnings(lens_cfg: Dict[str, Any]) -> List[str]:
+    """알려진 렌즈 필드가 아닌 top-level 키를 경고 문자열로 반환한다."""
+    known = set(LensConfig.model_fields)
+    unknown = sorted(k for k in (lens_cfg or {}) if k not in known)
+    if unknown:
+        return ["unknown keys: " + ", ".join(unknown)]
+    return []
 
 
 def resolve_lens_dir(lens_dir: str | None = "lenses") -> str:
@@ -36,8 +69,9 @@ def resolve_lens_dir(lens_dir: str | None = "lenses") -> str:
 
 
 def load_lens(lens_name: str, lens_dir: str = "lenses") -> Dict[str, Any]:
-    """렌즈 YAML을 로드한다. 없으면 LensNotFoundError.
+    """렌즈 YAML을 로드하고 알려진 필드의 타입을 검증한다.
 
+    없으면 LensNotFoundError, 타입 계약 위반이면 LensConfigError.
     도메인 규칙은 코드가 아니라 이 파일에서 주입된다(헌법 §2: 도메인 독립성).
     """
     path = Path(resolve_lens_dir(lens_dir)) / f"{lens_name}.yaml"
@@ -45,6 +79,14 @@ def load_lens(lens_name: str, lens_dir: str = "lenses") -> Dict[str, Any]:
         raise LensNotFoundError(f"렌즈 '{lens_name}' 를 찾을 수 없습니다: {path}")
     with open(path, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
+    if not isinstance(cfg, dict):
+        raise LensConfigError(f"렌즈 '{lens_name}' YAML 루트가 매핑이 아닙니다: {path}")
+    try:
+        LensConfig.model_validate(cfg)
+    except ValidationError as e:
+        raise LensConfigError(
+            f"렌즈 '{lens_name}' 설정이 필드 계약을 위반합니다 ({path}):\n{e}"
+        ) from e
     return cfg
 
 

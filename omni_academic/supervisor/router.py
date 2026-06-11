@@ -117,7 +117,9 @@ def _lens_ontology_directive(lens: str) -> str:
 
 def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
     from omni_academic.config.lens import (
+        LensConfigError,
         get_recon_client_names,
+        lens_warnings,
         load_lens,
         resolve_lens_dir,
     )
@@ -129,6 +131,13 @@ def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
     for path in sorted(root.glob("*.yaml")):
         try:
             cfg = load_lens(path.stem, lens_dir)
+        except LensConfigError as e:
+            rows.append({
+                "id": path.stem, "name": "(invalid)",
+                "clients": [], "focus": [],
+                "issues": [str(e).splitlines()[0]],
+            })
+            continue
         except Exception:
             continue
         rows.append({
@@ -136,6 +145,7 @@ def _list_lenses(lens_dir: str = "lenses") -> list[dict]:
             "name": cfg.get("name", path.stem),
             "clients": get_recon_client_names(cfg),
             "focus": cfg.get("focus_areas", []) or [],
+            "issues": lens_warnings(cfg),
         })
     return rows
 
@@ -148,12 +158,15 @@ def _print_lenses(lens_dir: str = "lenses") -> None:
     table.add_column("Name")
     table.add_column("Recon Clients")
     table.add_column("Focus Areas")
+    table.add_column("Validation")
     for row in _list_lenses(lens_dir):
+        issues = row.get("issues") or []
         table.add_row(
             row["id"],
             str(row["name"]),
             ", ".join(row["clients"]) or "-",
             "; ".join(str(v) for v in row["focus"]) or "-",
+            "[yellow]⚠ " + "; ".join(issues) + "[/yellow]" if issues else "[green]OK[/green]",
         )
     console.print(table)
 
