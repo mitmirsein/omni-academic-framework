@@ -113,6 +113,16 @@ Lenses inject domain-specific configuration without hard-coding domains into cor
 
 Custom lenses can be supplied with `OMNI_LENS_DIR` or `--lens-dir`.
 
+### Recon Clients
+
+Directory: `omni_academic/recon/clients/`
+
+Each search adapter (arXiv, KCI, Crossref, EconBiz, PubMed, OpenAlex, DBLP, SerpAPI Scholar,
+Semantic Scholar) lives in its own module behind the shared `BaseAPIClient` contract in
+`clients/base.py`. `CLIENT_FACTORY` in `clients/__init__.py` is the plug-and-play registry:
+adding an engine means adding one file and one registry entry. `recon/engine.py` keeps only the
+orchestration (`ReconEngine`) and re-exports client symbols for backward compatibility.
+
 ### LLM Providers
 
 File: `omni_academic/llm/provider.py`
