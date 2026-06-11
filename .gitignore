@@ -46,3 +46,4 @@ handoff/
 
 # Private scripts / Legacy tools
 skills/semantic-scholar/scripts/legacy_researcher.py
+.coverage
